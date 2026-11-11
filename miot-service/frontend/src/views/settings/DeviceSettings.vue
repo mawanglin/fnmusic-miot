@@ -68,9 +68,11 @@ onUnmounted(() => {
   stopQrPolling();
 });
 
+// 自动保存：下拉选择立即保存；自定义地址在输入框离开或回车时保存。
 async function saveServerHost() {
   const host = (isCustomHost.value ? customHost.value : serverChoice.value).trim();
-  if (!host) { notify('请选择或填写服务器地址', 'warning'); return; }
+  if (!host || host === state.config.server_host) return;
+  if (!/^https?:\/\//i.test(host)) { notify('服务器地址需以 http:// 或 https:// 开头', 'warning'); return; }
   await saveConfig({ server_host: host });
   state.config.server_host_status = host.includes('localhost') || host.includes('127.0.0.1') ? 'loopback' : 'ok';
 }
@@ -91,6 +93,7 @@ async function autoFill() {
     serverChoice.value = '__custom__';
   }
   customHost.value = origin;
+  void saveServerHost().catch(() => { });
   const isLoopback = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('::1') || origin.includes('[::1]');
   if (isLoopback) {
     notify('已填入浏览器地址，但 localhost/127.0.0.1 仅限本机调试，音箱无法访问', 'warning');
@@ -232,9 +235,9 @@ async function toggleMusicApi(hardware: string, enabled: boolean): Promise<void>
 <template>
   <SectionCard title="服务器配置" icon="dns" description="音箱必须能访问这里填写的地址；localhost 和 127.0.0.1 只适合浏览器本机调试。">
     <div class="form-body">
-      <div class="field"><label class="field-label">服务器地址</label><SlSelect v-model="serverChoice" :options="hostOptions" placeholder="选择服务器地址" allow-empty aria-label="服务器地址" /><SlInput v-if="isCustomHost" v-model="customHost" style="margin-top:8px" placeholder="例如 http://192.168.1.100:58091" aria-label="自定义服务器地址" /></div>
+      <div class="field"><label class="field-label">服务器地址</label><SlSelect :model-value="serverChoice" :options="hostOptions" placeholder="选择服务器地址" allow-empty aria-label="服务器地址" @update:model-value="serverChoice = $event; if ($event !== '__custom__') void saveServerHost().catch(() => {})" /><SlInput v-if="isCustomHost" v-model="customHost" style="margin-top:8px" placeholder="例如 http://192.168.1.100:58091" aria-label="自定义服务器地址" @change="saveServerHost().catch(() => {})" @submit="saveServerHost().catch(() => {})" /></div>
       <div v-if="state.config.server_host_status !== 'ok'" class="field-help">{{ state.config.server_host_status === 'loopback' ? '当前地址为本地回环地址，音箱无法访问。' : '尚未配置可用地址。' }}</div>
-      <div class="field-actions"><SlButton variant="text" label="自动填充" icon="auto_fix_high" @click="autoFill" /><SlButton variant="filled" label="保存" icon="save" @click="saveServerHost" /></div>
+      <div class="field-actions"><SlButton variant="text" label="填入当前浏览器地址" icon="auto_fix_high" @click="autoFill" /></div>
     </div>
   </SectionCard>
 
@@ -266,7 +269,7 @@ async function toggleMusicApi(hardware: string, enabled: boolean): Promise<void>
       <label class="field-label">按型号选择 Music API 播放</label>
       <p class="field-help">勾选使用 Music API，取消勾选使用直链播放。部分型号需要 Music API 才能正常发声，兼容性取决于设备固件。</p>
       <p class="field-help">遇到歌尾复播或切歌异常时，可尝试取消勾选；若取消后无声，请重新勾选。</p>
-      <p class="field-help">保存后，下次下发歌曲时生效，当前播放不会立即切换；同一型号的所有设备共用此设置。</p>
+      <p class="field-help">勾选后立即保存，下次下发歌曲时生效，当前播放不会立即切换；同一型号的所有设备共用此设置。</p>
       <p v-if="!musicApiModelRows.length" class="field-help">尚未识别到任何设备型号，登录并开启设备管理后会出现在这里。</p>
       <div v-for="row in musicApiModelRows" :key="row.hardware" class="device-check-row">
         <SlCheckbox :model-value="isMusicApiEnabled(row.hardware)" :disabled="!row.inDefaults" :aria-label="`使用 Music API 播放 ${row.hardware}`" @update:model-value="toggleMusicApi(row.hardware, $event)" />

@@ -84,13 +84,34 @@ async function refresh() {
   if (!alive || version !== refreshVersion || identity !== targetQuery.value) return;
   history.value = h.history; total.value = h.total; summary.value = h.summary; memories.value = m.memories;
 }
-async function save() {
+async function save(silent = false) {
   if (config.connection === 'independent') config.custom_headers = parseAIHeaders(customHeaders.value);
   config.trigger_words = triggers.value.split(/[、,，\n]/).map(v => v.trim()).filter(Boolean);
   Object.assign(config, await put<ChatConfig>('/chat/config', config));
   customHeaders.value = JSON.stringify(config.custom_headers || {}, null, 2);
   savedConfig.value = JSON.stringify(config);
-  notify('AI 对话设置已保存', 'success');
+  notify(silent ? '设置已保存' : 'AI 对话设置已保存', 'success');
+}
+// 自动保存：开关 / 下拉框一改就存，输入框在失焦或回车时存（与其它设置页一致）。
+// 串行执行，避免连续切换时旧请求覆盖新状态；失败时保留「有未保存的修改」并提示原因。
+let saveChain: Promise<void> = Promise.resolve();
+function saveMemory(memory: ChatMemory) {
+  const draft = memoryDrafts[memory.id];
+  if (draft === undefined || draft.trim() === memory.content.trim()) { delete memoryDrafts[memory.id]; return; }
+  safeAction(async () => {
+    await put(`/chat/memories/${encodeURIComponent(memory.id)}`, { ...target.value, content: draft });
+    delete memoryDrafts[memory.id];
+    notify('记忆已保存', 'success');
+    await refresh();
+  });
+}
+function autoSave() {
+  if (!loaded.value || !alive) return;
+  saveChain = saveChain.then(async () => {
+    if (!alive || !dirty.value) return;
+    try { await save(true); error.value = ''; }
+    catch (e) { error.value = messageOf(e); notify(`自动保存失败：${error.value}`, 'error'); }
+  });
 }
 async function submit() {
   await post('/chat/messages', { ...target.value, text: question.value, speak: speak.value });
@@ -130,6 +151,9 @@ watch([
   () => state.chatStatus?.memory_revision,
 ], () => { void refreshSafely(); });
 watch(connectionIdentity, () => { testVersion++; connectionTest.value = null; }, { flush: 'sync' });
+watch(() => [config.enabled, config.resume_music, config.waiting_feedback, config.memory_enabled, config.summary_enabled,
+  config.fallback_enabled, config.streaming_enabled, config.web_search_enabled, config.context_turns > 0, config.connection, config.api_protocol],
+() => autoSave());
 onMounted(() => { void action(async () => { Object.assign(config, await get<ChatConfig>('/chat/config')); triggers.value = config.trigger_words.join('、'); customHeaders.value = JSON.stringify(config.custom_headers || {}, null, 2); savedConfig.value = JSON.stringify(config); lastContextTurns.value = config.context_turns || 3; loaded.value = true; void get<{ streaming: boolean; }>('/chat/capabilities').then(value => { if (alive) streamingAvailable.value = value.streaming; }).catch(() => { }); await refresh(); }); });
 let alive = true;
 onUnmounted(() => { alive = false; refreshVersion++; });
@@ -143,7 +167,7 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
       <div class="form-body">
       <SettingRow title="启用 AI 对话"><SlSwitch v-model="config.enabled" :disabled="!loaded || busy" aria-label="启用 AI 对话" /></SettingRow>
       <p v-if="!state.config.conversation_monitor_enabled">语音问答需要对话监听。<SlButton label="一并开启监听" variant="outlined" @click="safeAction(async () => { await saveConfig({ conversation_monitor_enabled: true }); })" /></p>
-      <label class="chat-field">触发词（用顿号或逗号分隔）<SlInput v-model="triggers" aria-label="问答触发词" /></label>
+      <label class="chat-field">触发词（用顿号或逗号分隔）<SlInput v-model="triggers" aria-label="问答触发词" @change="autoSave()" /></label>
       <SettingRow title="每轮回答后恢复原音乐"><SlSwitch v-model="config.resume_music" aria-label="回答后恢复音乐" /></SettingRow>
       <SettingRow title="等待时播报提示" subtitle="提问后说“收到，正在思考”，模型请求同时开始。"><SlSwitch v-model="config.waiting_feedback" aria-label="等待时播报提示" /></SettingRow>
       <p>追问仍需唤醒音箱。分组播放时全组暂停，仅提问设备回答；播报结束无法确认时保持暂停。DLNA 投放中请先停止投放。</p>
@@ -152,13 +176,13 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
     <SectionCard title="对话上下文" description="聊天记录用于查看；只有开启以下选项才会发送相关历史或偏好。">
       <div class="form-body">
         <SettingRow title="携带历史对话" subtitle="让 AI 理解连续追问。关闭后不携带以前的问答和摘要。"><SlSwitch :model-value="contextEnabled" aria-label="携带历史对话" @update:model-value="setContextEnabled($event)" /></SettingRow>
-        <label v-if="contextEnabled" class="chat-field">参考最近几轮（1–24）<SlInput :model-value="String(config.context_turns)" type="number" aria-label="上下文轮数" @update:model-value="config.context_turns = Number($event)" /><small>一轮包含一次提问和回答。</small></label>
+        <label v-if="contextEnabled" class="chat-field">参考最近几轮（1–24）<SlInput :model-value="String(config.context_turns)" type="number" aria-label="上下文轮数" @change="autoSave()" @update:model-value="config.context_turns = Number($event)" /><small>一轮包含一次提问和回答。</small></label>
         <SettingRow title="记住我的偏好" subtitle="自动保存并参考个人事实与偏好，会产生额外模型请求。"><SlSwitch v-model="config.memory_enabled" aria-label="长期记忆" /></SettingRow>
         <p v-if="!contextEnabled && !config.memory_enabled">每次提问独立处理，只发送角色提示词和本次问题。</p>
         <SlDisclosure title="高级设置" description="较早对话的摘要和记录保留">
           <SettingRow title="保留更早的对话摘要" subtitle="压缩较早的问答供后续参考，会产生额外模型请求。关闭历史对话时暂停使用和生成。"><SlSwitch v-model="config.summary_enabled" :disabled="!contextEnabled" aria-label="对话摘要" /></SettingRow>
-          <label class="chat-field">历史保留天数（1–30）<SlInput :model-value="String(config.history_days)" type="number" aria-label="历史保留天数" @update:model-value="config.history_days = Number($event)" /></label>
-          <label class="chat-field">历史最大轮数（12–500）<SlInput :model-value="String(config.history_limit)" type="number" aria-label="历史最大轮数" @update:model-value="config.history_limit = Number($event)" /></label>
+          <label class="chat-field">历史保留天数（1–30）<SlInput :model-value="String(config.history_days)" type="number" aria-label="历史保留天数" @change="autoSave()" @update:model-value="config.history_days = Number($event)" /></label>
+          <label class="chat-field">历史最大轮数（12–500）<SlInput :model-value="String(config.history_limit)" type="number" aria-label="历史最大轮数" @change="autoSave()" @update:model-value="config.history_limit = Number($event)" /></label>
           <p>关闭选项会保留本地数据；需要删除时使用下面的数据清理操作。</p>
         </SlDisclosure>
       </div>
@@ -168,13 +192,13 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
       <SlSelect :disabled="busy || !loaded" v-model="config.connection" :options="[{ value: 'analysis', label: '复用默认模型连接' }, { value: 'independent', label: '独立连接' }]" aria-label="对话模型连接" />
       <template v-if="config.connection === 'independent'">
         <label class="chat-field">接口格式<SlSelect :model-value="config.api_protocol === 'anthropic' ? 'anthropic' : 'openai'" :options="[{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'anthropic', label: 'Anthropic（Messages）' }]" aria-label="问答接口格式" @update:model-value="config.api_protocol = $event === 'anthropic' ? 'anthropic' : (config.api_protocol === 'anthropic' ? 'chat_completions' : config.api_protocol)" /></label>
-        <label class="chat-field">服务地址<SlInput v-model="config.api_url" type="url" aria-label="问答 API 地址" placeholder="粘贴服务商提供的 API 基础地址" /><small>例如 https://example.com/v1，请勿粘贴聊天或搜索请求的完整地址。</small></label>
-        <label class="chat-field">API 密钥<SlInput v-model="config.api_key" type="password" aria-label="问答 API 密钥" /></label>
+        <label class="chat-field">服务地址<SlInput v-model="config.api_url" type="url" aria-label="问答 API 地址" @change="autoSave()" placeholder="粘贴服务商提供的 API 基础地址" /><small>例如 https://example.com/v1，请勿粘贴聊天或搜索请求的完整地址。</small></label>
+        <label class="chat-field">API 密钥<SlInput v-model="config.api_key" type="password" aria-label="问答 API 密钥" @change="autoSave()" /></label>
       </template>
       <p v-if="config.connection === 'analysis'">默认模型：{{ state.config.ai_config.model || '尚未配置' }}（{{ state.config.ai_config.api_format === 'anthropic' ? 'Anthropic 格式' : 'OpenAI 兼容格式' }}）。同时复用默认连接的自定义请求头。启用对话不需要开启口令分析。</p>
-      <label class="chat-field">问答模型<SlInput v-model="config.model" aria-label="问答模型" placeholder="留空则使用默认模型" /></label>
-      <SlButton v-if="config.connection === 'independent'" label="保存并获取模型" variant="outlined" :disabled="busy || !loaded" @click="safeAction(async () => { await save(); const r = await get<{ models: Array<{ id: string }>; list_unsupported?: boolean }>('/chat/models'); models = r.models; if (r.list_unsupported) notify('该服务不提供模型列表，请在「问答模型」手动填写模型名，再点「测试连接」验证', 'info'); })" />
-      <SlSelect :disabled="busy || !loaded" v-if="models.length" v-model="config.model" :options="models.map(m => ({ value: m.id, label: m.id }))" aria-label="可用问答模型" />
+      <label class="chat-field">问答模型<SlInput v-model="config.model" aria-label="问答模型" @change="autoSave()" placeholder="留空则使用默认模型" /></label>
+      <SlButton v-if="config.connection === 'independent'" label="获取模型" variant="outlined" :disabled="busy || !loaded" @click="safeAction(async () => { if (dirty) await save(true); const r = await get<{ models: Array<{ id: string }>; list_unsupported?: boolean }>('/chat/models'); models = r.models; if (r.list_unsupported) notify('该服务不提供模型列表，请在「问答模型」手动填写模型名，再点「测试连接」验证', 'info'); })" />
+      <SlSelect :disabled="busy || !loaded" v-if="models.length" :model-value="config.model" @update:model-value="config.model = $event; autoSave()" :options="models.map(m => ({ value: m.id, label: m.id }))" aria-label="可用问答模型" />
       <SettingRow title="联网搜索" subtitle="回答实时问题时，允许 AI 搜索资料。可能产生额外费用。">
         <SlSwitch :model-value="config.web_search_enabled" aria-label="联网搜索" @update:model-value="setWebSearch($event)" />
       </SettingRow>
@@ -210,20 +234,20 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
       <label class="chat-field">连接方式<SlSelect v-model="config.api_protocol" :options="[{ value: 'chat_completions', label: '兼容模式（Chat Completions）' }, { value: 'responses', label: '搜索工具模式（Responses）' }, ...(config.connection === 'independent' ? [{ value: 'anthropic', label: 'Anthropic（Messages）' }] : [])]" :disabled="config.connection === 'analysis' && state.config.ai_config.api_format === 'anthropic'" aria-label="问答接口协议" /></label>
       <p v-if="config.connection === 'analysis' && state.config.ai_config.api_format === 'anthropic'">复用默认连接，接口格式跟随默认连接（Anthropic）。</p>
       <p>普通连接可保留兼容模式。自定义服务的内置搜索可尝试搜索工具模式，需服务商和模型支持 Responses。切换后请重新测试。</p>
-      <AIHeadersField v-if="config.connection === 'independent'" v-model="customHeaders" label="问答自定义请求头" />
-      <label class="chat-field">请求超时（1–30 秒）<SlInput :model-value="String(config.timeout)" type="number" aria-label="问答超时" @update:model-value="config.timeout = Number($event)" /></label>
-      <label class="chat-field">角色提示词<textarea v-model="config.system_prompt" class="sl-input chat-textarea" aria-label="角色提示词" maxlength="4000"></textarea></label>
+      <AIHeadersField v-if="config.connection === 'independent'" v-model="customHeaders" label="问答自定义请求头" @change="autoSave()" />
+      <label class="chat-field">请求超时（1–30 秒）<SlInput :model-value="String(config.timeout)" type="number" aria-label="问答超时" @change="autoSave()" @update:model-value="config.timeout = Number($event)" /></label>
+      <label class="chat-field">角色提示词<textarea v-model="config.system_prompt" class="sl-input chat-textarea" aria-label="角色提示词" maxlength="4000" @change="autoSave()"></textarea></label>
       <SettingRow title="音乐口令未命中后交给 AI"><SlSwitch v-model="config.fallback_enabled" aria-label="兜底问答" /></SettingRow>
-      <label class="chat-field">追问窗口（秒，0 关闭）<SlInput :model-value="String(config.followup_seconds)" type="number" aria-label="追问窗口" @update:model-value="config.followup_seconds = Number($event)" /></label>
+      <label class="chat-field">追问窗口（秒，0 关闭）<SlInput :model-value="String(config.followup_seconds)" type="number" aria-label="追问窗口" @change="autoSave()" @update:model-value="config.followup_seconds = Number($event)" /></label>
       <p>追问窗口决定哪些话交给 AI；历史上下文决定 AI 能参考哪些问答。</p>
       <SettingRow title="实时显示回答" subtitle="逐步显示模型生成的文字，音箱仍等待完整回答后播报。接口不支持时可关闭。"><SlSwitch v-model="config.streaming_enabled" aria-label="实时显示回答" /></SettingRow>
       <p v-if="streamingAvailable === false">当前服务端尚不支持实时接收，将等待完整回答。升级服务端后可用。</p>
       </SlDisclosure>
       </div>
     </SectionCard>
-    <div class="chat-save">
-      <span v-if="dirty" role="status">有未保存的修改</span>
-      <SlButton label="保存设置" :disabled="busy || !loaded || !dirty" @click="safeAction(save)" />
+    <div v-if="error && dirty" class="chat-save">
+      <span role="alert">自动保存失败：{{ error }}</span>
+      <SlButton label="重试保存" :disabled="busy || !loaded" @click="safeAction(save)" />
     </div>
     <SectionCard title="对话测试" description="使用当前选中的受管理音箱。关闭播报可测试模型而不暂停音乐。">
       <div class="form-body">
@@ -259,13 +283,12 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
       </div>
       </div>
     </SectionCard>
-    <SlDisclosure title="偏好记忆管理" description="查看、编辑或删除保存的偏好；手工编辑不会被自动覆盖。">
+    <SlDisclosure title="偏好记忆管理" description="查看、编辑或删除保存的偏好；改完离开输入框即保存，手工编辑不会被自动覆盖。">
       <div class="form-body">
       <article v-for="memory in memories" :key="memory.id" class="chat-turn">
-        <SlInput :model-value="memoryDrafts[memory.id] ?? memory.content" @update:model-value="memoryDrafts[memory.id] = $event" aria-label="记忆内容" />
+        <SlInput :model-value="memoryDrafts[memory.id] ?? memory.content" @update:model-value="memoryDrafts[memory.id] = $event" aria-label="记忆内容" @change="saveMemory(memory)" @submit="saveMemory(memory)" />
         <small>{{ memory.manual ? '手工维护' : '自动提取' }} · 来源：{{ memory.source_ids.join('、') || '手工添加' }}</small>
         <div class="chat-actions">
-          <SlButton label="保存记忆" variant="text" :disabled="busy" @click="safeAction(async () => { await put(`/chat/memories/${encodeURIComponent(memory.id)}`, { ...target, content: memoryDrafts[memory.id] ?? memory.content }); delete memoryDrafts[memory.id]; await refresh(); })" />
           <SlButton label="删除记忆" variant="text" :disabled="busy" @click="safeAction(async () => { await del(`/chat/memories/${encodeURIComponent(memory.id)}${targetQuery}`); await refresh(); })" />
         </div>
       </article>

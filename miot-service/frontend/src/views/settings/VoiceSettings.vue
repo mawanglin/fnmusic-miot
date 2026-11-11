@@ -504,12 +504,12 @@ async function removeSource(id: string): Promise<void> {
   if (removed) notify(`已移除搜索源「${removed.name || removed.url}」`, 'success');
 }
 
+// 自动保存：已配置源的输入框在离开或回车时保存，启用开关立即保存；内容没变不重复保存。
 async function saveSources(): Promise<void> {
-  const sources = (Array.isArray(state.config.external_search_sources) ? state.config.external_search_sources : []).map((source) => ({
-    ...(sourceDrafts[source.id] || source),
-  }));
+  const current = Array.isArray(state.config.external_search_sources) ? state.config.external_search_sources : [];
+  const sources = current.map((source) => ({ ...(sourceDrafts[source.id] || source) }));
+  if (JSON.stringify(sources) === JSON.stringify(current)) return;
   await saveConfig({ external_search_sources: sources });
-  notify('外部搜索源已保存', 'success');
 }
 
 async function testSource(): Promise<void> {
@@ -739,15 +739,14 @@ async function deleteMemoryRecord(id?: string): Promise<void> {
         <!-- 各包一层 .field 是为了拿到与其它表单行一致的 16px 行距：.field-grid 的
              row-gap 是 0，裸 input 会挤在一起。.field-grid 用 flex 而非 grid 的
              原因见 style.css（songloft-org/songloft-plugin-miot#79）。 -->
-        <div class="field-grid"><div class="field"><SlInput v-model="sourceDrafts[source.id].name" placeholder="显示名称" /></div><div class="field"><SlInput v-model="sourceDrafts[source.id].url" placeholder="接口地址" /></div></div>
-        <SlInput v-model="sourceDrafts[source.id].token" type="password" placeholder="Bearer Token（可选）" />
-        <SettingRow title="启用此源"><SlSwitch v-model="sourceDrafts[source.id].enabled" :aria-label="`启用搜索源 ${sourceDrafts[source.id].name || source.id}`" /></SettingRow>
+        <div class="field-grid"><div class="field"><SlInput v-model="sourceDrafts[source.id].name" placeholder="显示名称" @change="saveSources().catch(() => {})" @submit="saveSources().catch(() => {})" /></div><div class="field"><SlInput v-model="sourceDrafts[source.id].url" placeholder="接口地址" @change="saveSources().catch(() => {})" @submit="saveSources().catch(() => {})" /></div></div>
+        <SlInput v-model="sourceDrafts[source.id].token" type="password" placeholder="Bearer Token（可选）" @change="saveSources().catch(() => {})" @submit="saveSources().catch(() => {})" />
+        <SettingRow title="启用此源"><SlSwitch :model-value="sourceDrafts[source.id].enabled" @update:model-value="sourceDrafts[source.id].enabled = $event; saveSources().catch(() => {})" :aria-label="`启用搜索源 ${sourceDrafts[source.id].name || source.id}`" /></SettingRow>
         <div class="field-actions"><SlButton variant="text" label="移除" icon="delete" @click="removeSource(source.id)" /></div>
       </div>
       <div v-if="!state.config.external_search_sources.length" class="empty-state">暂无已配置源，从上方「快速选择」添加，或手动添加</div>
       <div class="field-actions">
         <SlButton variant="outlined" label="手动添加搜索源" icon="add" @click="showManualAdd = !showManualAdd" />
-        <SlButton variant="filled" label="保存全部" icon="save" @click="saveSources" />
       </div>
       <div v-if="showManualAdd" class="sub-panel sub-panel-inset"><div class="field-grid"><div class="field"><SlInput v-model="newSourceName" placeholder="新源名称" /></div><div class="field"><SlInput v-model="newSourceUrl" placeholder="接口 URL" /></div></div><SlInput v-model="newSourceToken" type="password" placeholder="Token（可选）" /><div class="field-actions"><SlButton variant="outlined" label="添加" icon="add" @click="addSource" /><SlButton variant="text" label="取消" @click="showManualAdd = false" /></div></div>
       <div class="field"><label class="field-label">接口测试</label><div class="inline-fields"><SlInput v-model="sourceTestQuery" placeholder="输入测试关键字" @submit="testSource" /><SlButton variant="outlined" label="测试" @click="testSource" /></div><pre v-if="sourceTestResult" class="result-pre">{{ sourceTestResult }}</pre></div>

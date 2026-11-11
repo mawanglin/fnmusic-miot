@@ -29,7 +29,8 @@ async function detect() {
     const r = await post<{ found: boolean; base_url?: string; source?: string }>('/fnmusic/detect');
     if (r.found && r.base_url) {
       url.value = r.base_url;
-      result.value = { ok: true, text: `已找到：${r.base_url}（来源：${r.source}）。点「保存」生效。` };
+      busy.value = '';
+      await save(`已找到并保存：${r.base_url}（来源：${r.source}）`);
     } else {
       result.value = { ok: false, text: '没有在本机找到飞牛音乐。请确认飞牛音乐已安装并运行，或手动填写地址。' };
     }
@@ -52,15 +53,21 @@ async function test() {
   } finally { busy.value = ''; }
 }
 
-async function save() {
+// 自动保存：输入框离开或回车时保存（地址没变就不存）；自动探测找到地址后直接保存。
+async function save(message = '') {
+  const next = url.value.trim();
+  if (!next || busy.value !== '') return;
+  if (!message && status.value.mode === 'manual' && next.replace(/\/+$/, '') === (status.value.base_url || '').replace(/\/+$/, '')) return;
   busy.value = 'save';
   result.value = null;
   try {
-    await saveFnmusicGateway({ mode: 'manual', baseUrl: url.value });
+    await saveFnmusicGateway({ mode: 'manual', baseUrl: next });
     url.value = status.value.base_url;
+    if (message) result.value = { ok: true, text: message };
     notify('飞牛音乐地址已保存', 'success');
   } catch (error) {
-    result.value = { ok: false, text: messageOf(error) };
+    // 后端会先测试地址，连不上就拒绝保存，避免把可用的地址覆盖成错误的。
+    result.value = { ok: false, text: `未保存：${messageOf(error)}` };
   } finally { busy.value = ''; }
 }
 
@@ -93,16 +100,15 @@ async function backToAuto() {
 
       <label class="field-label" for="fnmusic-url">飞牛音乐地址</label>
       <div class="inline-fields">
-        <SlInput id="fnmusic-url" v-model="url" type="url" placeholder="http://192.168.1.10:5666" aria-label="飞牛音乐地址" @submit="test" />
+        <SlInput id="fnmusic-url" v-model="url" type="url" placeholder="http://192.168.1.10:5666" aria-label="飞牛音乐地址" @change="save()" @submit="save()" />
       </div>
       <div class="field-actions">
         <SlButton variant="tonal" icon="search" label="自动探测" :disabled="busy !== ''" @click="detect" />
         <SlButton variant="tonal" icon="check_circle" label="测试连接" :disabled="busy !== '' || !url.trim()" @click="test" />
-        <SlButton variant="filled" icon="save" label="保存" :disabled="busy !== '' || !url.trim()" @click="save" />
         <SlButton v-if="status.mode === 'manual'" variant="text" icon="refresh" label="恢复自动探测" :disabled="busy !== ''" @click="backToAuto" />
       </div>
       <p v-if="result" class="field-hint" :style="{ color: result.ok ? 'var(--md-primary)' : 'var(--md-error)' }">{{ result.text }}</p>
-      <p class="field-hint">地址格式：<code>http://飞牛的IP:端口</code>。在飞牛「设置 → 网络 → 网关」里可以看到 HTTP 端口。保存后不用重启，歌单会自动重新加载。手动保存的地址不会被自动探测覆盖。</p>
+      <p class="field-hint">地址格式：<code>http://飞牛的IP:端口</code>。在飞牛「设置 → 网络 → 网关」里可以看到 HTTP 端口。填写后离开输入框或按回车即自动保存，不用重启，歌单会自动重新加载。手动填写的地址不会被自动探测覆盖。</p>
     </div>
   </SectionCard>
 </template>

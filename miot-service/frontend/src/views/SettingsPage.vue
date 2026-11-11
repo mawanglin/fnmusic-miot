@@ -123,6 +123,7 @@ onUnmounted(() => window.removeEventListener('resize', updateWidth));
               <span class="settings-header-eyebrow">MIoT 设置</span>
               <h1>{{ currentCategory.title }}</h1>
               <p>{{ categorySubtitle(currentCategory) }}</p>
+              <p class="settings-autosave-hint"><SlIcon name="cloud_done" :size="14" />{{ state.configSaving ? '正在保存…' : '修改自动保存：开关和选项立即生效，输入框在离开或按回车时保存' }}</p>
             </div>
           </div>
           <component :is="currentCategory.component" />
@@ -132,3 +133,7 @@ onUnmounted(() => window.removeEventListener('resize', updateWidth));
     </div>
   </div>
 </template>
+
+<style>
+.settings-autosave-hint { display: flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--md-on-surface-variant); font-size: 12px; }
+</style>
