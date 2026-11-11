@@ -39,8 +39,10 @@ function draw() {
   ctx.clearRect(0, 0, width, height);
   if (!data || !width || !height) return;
   const stage = props.variant === 'stage';
-  const gap = stage ? 6 : 4;
-  const barCount = Math.max(8, Math.min(stage ? 96 : 120, Math.floor(width / (stage ? 18 : 12))));
+  // 窄屏（手机）播放页用更细更密的柱子，避免几根粗柱子显得笨重。
+  const narrow = width < 600;
+  const gap = stage && !narrow ? 6 : narrow ? 3 : 4;
+  const barCount = Math.max(8, Math.min(stage ? 96 : 120, Math.floor(width / (stage && !narrow ? 18 : narrow ? 9 : 12))));
   if (shown.length !== barCount) shown = new Float32Array(barCount);
   if (levels.length !== data.bands) levels = new Float32Array(data.bands);
   const playing = !!state.player.is_playing;
@@ -52,7 +54,7 @@ function draw() {
   gradient.addColorStop(0, 'rgba(0,0,0,0)');
   gradient.addColorStop(stage ? 0.45 : 0.3, 'rgba(0,0,0,1)');
   ctx.fillStyle = color;
-  ctx.globalAlpha = stage ? 0.26 : 0.18;
+  ctx.globalAlpha = stage ? (narrow ? 0.2 : 0.26) : 0.18;
   let moving = false;
   for (let i = 0; i < barCount; i++) {
     // 柱子在频段之间插值：左低频、右高频，数量随宽度变化。
@@ -115,4 +117,5 @@ onUnmounted(() => {
 .spectrum-canvas { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; pointer-events: none; display: block; }
 .spectrum-canvas-bar { top: 0; height: 100%; z-index: -1; }
 .spectrum-canvas-stage { height: 36%; z-index: 0; }
+@media (max-width: 599px) { .spectrum-canvas-stage { height: 26%; } }
 </style>
