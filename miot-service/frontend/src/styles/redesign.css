@@ -1,7 +1,9 @@
 /* MIoT 2026 responsive visual system. Keep all colors derived from the host M3 theme. */
 :root {
-  --miot-content-width: 1280px;
-  --miot-detail-width: 900px;
+  /* 内容随窗口铺满（全屏 / 大屏不再两侧留大片空白），只保留随屏宽变化的左右边距。 */
+  --miot-content-width: 100%;
+  --miot-detail-width: none;
+  --miot-page-gutter: clamp(20px, 2.5vw, 56px);
   --miot-nav-width: 268px;
   --miot-space-1: 4px;
   --miot-space-2: 8px;
@@ -1062,4 +1064,11 @@ html[data-player-gradient='custom'] .fullscreen-theme-gradient { opacity: .4; }
   .fullscreen-player,
   .fullscreen-ambient,
   .fullscreen-theme-gradient { transition: none; }
+}
+
+/* 宽屏铺满：页面、顶栏与设置页统一使用随屏宽变化的左右边距。 */
+@media (min-width: 900px) {
+  .miot-page { padding-right: var(--miot-page-gutter); padding-left: var(--miot-page-gutter); }
+  .miot-main-appbar-inner, .settings-appbar-inner { padding-right: var(--miot-page-gutter); padding-left: var(--miot-page-gutter); }
+  .settings-layout { padding-right: max(0px, calc(var(--miot-page-gutter) - 24px)); padding-left: max(0px, calc(var(--miot-page-gutter) - 10px)); }
 }
