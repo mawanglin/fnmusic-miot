@@ -61,6 +61,8 @@ export interface MiotConfig {
   touchscreen_lyrics_enabled: boolean;
   /** 播放栏 / 播放页频谱动画，默认关闭 */
   spectrum_enabled: boolean;
+  /** 频谱配色，默认彩虹 */
+  spectrum_style: 'rainbow' | 'ocean' | 'sunset' | 'aurora' | 'neon' | 'theme';
   ai_config: AIConfig;
 }
 

@@ -126,6 +126,7 @@ export function registerConfigHandlers(
           default_cover_id: config.default_cover_id,
           touchscreen_lyrics_enabled: !!config.touchscreen_lyrics_enabled,
           spectrum_enabled: !!config.spectrum_enabled,
+          spectrum_style: config.spectrum_style || 'rainbow',
         },
       });
     } catch (e: any) {
@@ -266,6 +267,12 @@ export function registerConfigHandlers(
         config.indicator_light_enabled = !!body.indicator_light_enabled;
       }
 
+      if (body.spectrum_style !== undefined) {
+        if (!['rainbow', 'ocean', 'sunset', 'aurora', 'neon', 'theme'].includes(body.spectrum_style)) {
+          return jsonResponse({ success: false, error: 'spectrum_style 无效' });
+        }
+        config.spectrum_style = body.spectrum_style;
+      }
       if (body.spectrum_enabled !== undefined) {
         config.spectrum_enabled = !!body.spectrum_enabled;
       }

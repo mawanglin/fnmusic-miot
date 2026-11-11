@@ -112,6 +112,7 @@ function defaultPluginConfig(): PluginConfig {
     default_cover_id: '1732418460076477549',
     touchscreen_lyrics_enabled: false,
     spectrum_enabled: false,
+    spectrum_style: 'rainbow',
     interrupt_tts_hint_enabled: false,
     interrupt_tts_hint_text: '正在搜索，请稍候',
     play_announcement_enabled: false,

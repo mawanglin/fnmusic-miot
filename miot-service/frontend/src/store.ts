@@ -63,6 +63,7 @@ const defaultConfig: MiotConfig = {
   default_cover_id: '',
   touchscreen_lyrics_enabled: false,
   spectrum_enabled: false,
+  spectrum_style: 'rainbow',
   ai_config: {},
 };
 

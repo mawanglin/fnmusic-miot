@@ -9,7 +9,8 @@ import SlSwitch from '../../ui/SlSwitch.vue';
 import SlDisclosure from '../../ui/SlDisclosure.vue';
 import { messageOf, notify, saveConfig, state } from '../../store';
 import { post } from '../../api';
-import type { SelectOption } from '../../types';
+import type { MiotConfig, SelectOption } from '../../types';
+import { paletteColor } from '../../spectrum';
 
 const transition = ref(String(state.config.song_transition_offset));
 const announcementDelay = ref(String(state.config.play_announcement_delay));
@@ -54,6 +55,16 @@ async function saveNumber(key: 'song_transition_offset' | 'play_announcement_del
   if (key === 'play_announcement_delay') announcementDelay.value = String(value);
   try { await saveConfig({ [key]: value }); } catch (error) { notify(messageOf(error), 'error'); }
 }
+const spectrumStyleOptions = [
+  { value: 'rainbow', label: '彩虹' }, { value: 'ocean', label: '海洋' }, { value: 'sunset', label: '日落' },
+  { value: 'aurora', label: '极光' }, { value: 'neon', label: '霓虹' }, { value: 'theme', label: '主题色' },
+];
+// 配色预览条：与画布同一套取色。
+function spectrumSwatch(style: string): string {
+  if (style === 'theme') return 'var(--md-primary)';
+  const stops = Array.from({ length: 7 }, (_, i) => paletteColor(style, i / 6)!).map((c) => `rgb(${c.join(',')})`);
+  return `linear-gradient(90deg, ${stops.join(',')})`;
+}
 function setSwitch(key: keyof typeof state.config, value: boolean) { void saveConfig({ [key]: value } as never); }
 </script>
 
@@ -77,6 +88,7 @@ function setSwitch(key: keyof typeof state.config, value: boolean) { void saveCo
 
   <SectionCard title="界面效果" icon="equalizer" description="只影响本页面的显示，不影响音箱播放。">
     <SettingRow title="播放频谱动画" subtitle="在底部播放栏和播放页显示随音乐跳动的频谱"><SlSwitch aria-label="播放频谱动画" :model-value="!!state.config.spectrum_enabled" @update:model-value="setSwitch('spectrum_enabled', $event)" /></SettingRow>
+    <div v-if="state.config.spectrum_enabled" class="form-body"><div class="field"><label class="field-label">频谱配色</label><div class="inline-fields"><SlSelect :model-value="state.config.spectrum_style || 'rainbow'" :options="spectrumStyleOptions" aria-label="频谱配色" @update:model-value="saveConfig({ spectrum_style: $event as MiotConfig['spectrum_style'] })" /><span class="spectrum-swatch" :style="{ background: spectrumSwatch(state.config.spectrum_style || 'rainbow') }" aria-hidden="true"></span></div></div></div>
     <div v-if="state.config.spectrum_enabled" class="dependency-hint"><SlIcon name="info" :size="18" /><span>声音在音箱上播放，网页拿不到实际音频：每首歌第一次播放时，NAS 会额外解码分析一遍（通常几秒，之后读缓存），再按播放进度同步显示，和实际声音可能有零点几秒的偏差。</span></div>
   </SectionCard>
 
@@ -97,3 +109,7 @@ function setSwitch(key: keyof typeof state.config, value: boolean) { void saveCo
     <div v-if="state.config.play_announcement_enabled" class="form-body"><div class="field"><label class="field-label">触发范围</label><SlSelect :model-value="state.config.play_announcement_scope || 'voice'" :options="[{ value: 'voice', label: '仅语音口令' }, { value: 'all', label: '语音口令 + 网页操作' }]" aria-label="播放公告触发范围" @update:model-value="state.config.play_announcement_scope = $event; saveConfig({ play_announcement_scope: $event })" /><p class="field-help">选择哪些操作会触发播放公告。</p></div><div class="field"><label class="field-label">公告模板</label><SlInput :model-value="state.config.play_announcement_template" aria-label="播放公告模板" @update:model-value="state.config.play_announcement_template = $event" @change="saveConfig({ play_announcement_template: state.config.play_announcement_template })" /><p class="field-help">可用占位符：{artist}、{song}。</p></div><div class="field"><label class="field-label">公告等待时间（秒）</label><SlInput :model-value="announcementDelay" type="number" aria-label="公告等待时间" @update:model-value="announcementDelay = $event" @change="saveNumber('play_announcement_delay', announcementDelay, 0, 30)" /></div></div>
   </SlDisclosure>
 </template>
+
+<style>
+.spectrum-swatch { width: 96px; height: 14px; flex: 0 0 auto; border-radius: 7px; }
+</style>

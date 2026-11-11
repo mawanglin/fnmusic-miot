@@ -99,3 +99,25 @@ export function useSpectrumSource() {
   }, { immediate: true }));
   return spectrum;
 }
+
+// ---- 配色：从左（低频）到右（高频）取色；画布与设置页预览共用 ----
+export type Rgb = [number, number, number];
+const PALETTES: Record<string, Rgb[]> = {
+  ocean: [[14, 165, 233], [34, 211, 238], [37, 99, 235]],
+  sunset: [[249, 115, 22], [244, 63, 94], [236, 72, 153]],
+  aurora: [[34, 197, 94], [20, 184, 166], [59, 130, 246]],
+  neon: [[236, 72, 153], [168, 85, 247], [99, 102, 241]],
+};
+function hslToRgb(h: number, sat: number, l: number): Rgb {
+  const k = (n: number) => (n + h / 30) % 12, a = sat * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+/** t ∈ [0,1] 处的颜色；返回 null 表示用主题色。 */
+export function paletteColor(style: string, t: number): Rgb | null {
+  if (style === 'theme') return null;
+  if (style === 'rainbow' || !PALETTES[style]) return hslToRgb(t * 285, 0.85, 0.58); // 红 → 紫
+  const stops = PALETTES[style], p = t * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(p)), u = p - i;
+  return stops[i].map((v, c) => Math.round(v + (stops[i + 1][c] - v) * u)) as Rgb;
+}
+

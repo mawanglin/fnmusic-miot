@@ -3,7 +3,7 @@
 // 只在「开关打开 + 有数据 + 正在播放 + 页面可见」时跑动画；暂停后柱子平滑回落再停。
 // 系统开启「减少动态效果」时不绘制。
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { currentTime, levelsAt, useSpectrumSource } from '../spectrum';
+import { currentTime, levelsAt, paletteColor, useSpectrumSource } from '../spectrum';
 import { state } from '../store';
 
 const props = withDefaults(defineProps<{ variant?: 'bar' | 'stage' }>(), { variant: 'bar' });
@@ -34,6 +34,22 @@ function resize() {
   kick();
 }
 
+// ---- 配色：从左（低频）到右（高频）取色，每根柱子再自下而上由暗变亮 ----
+let barColors: Array<{ base: string; top: string } | null> = [], barColorKey = '';
+function colorsFor(style: string, count: number) {
+  const key = `${style}:${count}`;
+  if (key !== barColorKey) {
+    barColorKey = key;
+    barColors = Array.from({ length: count }, (_, i) => {
+      const rgb = paletteColor(style, count > 1 ? i / (count - 1) : 0);
+      if (!rgb) return null;
+      const lift = rgb.map((v) => Math.round(v + (255 - v) * 0.35));
+      return { base: `rgb(${rgb.map((v) => Math.round(v * 0.82)).join(',')})`, top: `rgb(${lift.join(',')})` };
+    });
+  }
+  return barColors;
+}
+
 function draw() {
   const el = canvas.value, data = source.data;
   const ctx = el?.getContext('2d');
@@ -55,9 +71,15 @@ function draw() {
   // 自下而上渐隐：柱顶淡出，不和上方文字抢视觉。
   const gradient = ctx.createLinearGradient(0, height - maxHeight, 0, height);
   gradient.addColorStop(0, 'rgba(0,0,0,0)');
-  gradient.addColorStop(stage ? 0.45 : 0.3, 'rgba(0,0,0,1)');
+  const style = String(state.config.spectrum_style || 'rainbow');
+  const colors = colorsFor(style, barCount);
+  const colorful = style !== 'theme';
+  gradient.addColorStop(stage ? (colorful ? 0.3 : 0.45) : 0.3, 'rgba(0,0,0,1)');
   ctx.fillStyle = color;
-  ctx.globalAlpha = stage ? (narrow ? 0.2 : 0.26) : 0.18;
+  // 彩色方案本身对比更柔，透明度略高一些才看得出层次。
+  ctx.globalAlpha = colorful
+    ? (stage ? (narrow ? 0.42 : 0.5) : 0.42)
+    : (stage ? (narrow ? 0.2 : 0.26) : 0.18);
   let moving = false;
   for (let i = 0; i < barCount; i++) {
     // 柱子在频段之间插值：左低频、右高频，数量随宽度变化。
@@ -71,6 +93,13 @@ function draw() {
     const h = Math.max(stage ? 3 : 2, shown[i] * maxHeight);
     const x = i * (barWidth + gap);
     const r = Math.min(barWidth / 2, stage ? 4 : 3);
+    const c = colors[i];
+    if (c) {
+      const g = ctx.createLinearGradient(0, height - h, 0, height);
+      g.addColorStop(0, c.top);
+      g.addColorStop(1, c.base);
+      ctx.fillStyle = g;
+    }
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(x, height - h, barWidth, h, [r, r, 0, 0]) : ctx.rect(x, height - h, barWidth, h);
     ctx.fill();
