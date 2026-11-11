@@ -63,6 +63,14 @@ for (const [k, v] of Object.entries(defaults)) {
 
 // 子进程 PATH 必须能找到 python3（token 解析脚本）与 ffprobe 等宿主工具。
 process.env.PATH = process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+// 随包依赖（node / python3 / ffmpeg / ffprobe）在 <appdir>/opt/bin：放进 PATH 最前，
+// 并给 ffmpeg/ffprobe 兜底默认值（.env 显式配置优先）。非随包的源码运行不受影响。
+const OPT_BIN = path.join(APPDIR, 'opt', 'bin');
+if (fs.existsSync(path.join(OPT_BIN, 'python3'))) {
+  process.env.PATH = `${OPT_BIN}:${process.env.PATH}`;
+  if (!process.env.FFMPEG_BIN) process.env.FFMPEG_BIN = path.join(OPT_BIN, 'ffmpeg');
+  if (!process.env.FFPROBE_BIN) process.env.FFPROBE_BIN = path.join(OPT_BIN, 'ffprobe');
+}
 
 function rotate(file) {
   try {

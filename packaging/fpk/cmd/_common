@@ -23,6 +23,8 @@ if [ -n "${MIOT_REPO_DIR}" ]; then
 else
     MIOT_APPDIR="${FNMUSIC_MIOT_APP_ROOT}"
 fi
+# 随包依赖（Node.js / Python / ffmpeg）在 <appdir>/opt，升级时随包整体替换。
+MIOT_OPT_DIR="${MIOT_APPDIR}/opt"
 MIOT_UNIT_NAME="fnmusic-miot.service"
 MIOT_UNIT_PATH="/etc/systemd/system/${MIOT_UNIT_NAME}"
 MIOT_SOCKET="${MIOT_APPDIR}/fnmusic-miot.sock"
@@ -114,6 +116,11 @@ fnmusic_miot_env_get() {
 fnmusic_miot_find_node() {
     local cand base found
 
+    # 随包 Node.js 优先：不依赖应用中心装 Node，也不受 .env 里旧版遗留的外部路径影响。
+    if [ -x "${MIOT_OPT_DIR}/node/bin/node" ]; then
+        echo "${MIOT_OPT_DIR}/node/bin/node"; return 0
+    fi
+
     cand="$(fnmusic_miot_env_get FNMUSIC_MIOT_NODE_BIN)"
     if [ -n "${cand}" ] && [ -x "${cand}" ]; then
         echo "${cand}"; return 0
@@ -165,7 +172,7 @@ fnmusic_miot_write_unit() {
     [ -f "${tpl}" ] || return 1
     [ -n "${MIOT_REPO_DIR}" ] || return 1
     tmp="$(mktemp 2>/dev/null || echo /tmp/fnmusic-miot.unit.$$)"
-    sed -e "s#@REPO@#${MIOT_REPO_DIR}#g" -e "s#@NODE@#${node_bin}#g" "${tpl}" > "${tmp}" || return 1
+    sed -e "s#@REPO@#${MIOT_REPO_DIR}#g" -e "s#@NODE@#${node_bin}#g" -e "s#@OPT@#${MIOT_OPT_DIR}#g" "${tpl}" > "${tmp}" || return 1
     install -m 0644 "${tmp}" "${MIOT_UNIT_PATH}" || { rm -f "${tmp}"; return 1; }
     rm -f "${tmp}"
     systemctl daemon-reload >/dev/null 2>&1 || true
@@ -257,6 +264,11 @@ fnmusic_miot_env_setup() {
     # 覆盖写：这些键在容器版里是另一套语义（8006 / /data/miot / /fnmusic-db）。
     _miot_env_set FNMUSIC_MIOT_APPDIR "${MIOT_APPDIR}"
     _miot_env_set FNMUSIC_MIOT_NODE_BIN "${node_bin}"
+    # 随包 ffmpeg/ffprobe：覆盖写，避免旧版遗留的 /usr/bin/ffmpeg 之类路径。
+    if [ -x "${MIOT_OPT_DIR}/bin/ffmpeg" ]; then
+        _miot_env_set FFMPEG_BIN "${MIOT_OPT_DIR}/bin/ffmpeg"
+        _miot_env_set FFPROBE_BIN "${MIOT_OPT_DIR}/bin/ffprobe"
+    fi
     _miot_env_set FNMUSIC_MIOT_DATA_ROOT "${MIOT_DATA_ROOT}"
     _miot_env_set MIOT_HOST "0.0.0.0"
     _miot_env_set MIOT_PORT "8775"

@@ -39,27 +39,43 @@
 
 ## 依赖
 
-- **必需**：飞牛音乐（`trim.music`）本体 + Node.js v20+（fnOS 应用商店可装）
-- **可选增强**：`fnmusic-ext` —— 提供在线音源、在线榜单、边听边存
-- 系统 `ffmpeg`（用于 WMA / APE 等格式的强制转码）
+- **必需**：飞牛音乐（`trim.music`）本体
+- **随包附带，无需另装**（按架构分 `x86` / `arm` 两个包，装在应用目录 `opt/`）：
 
-> miot 本身不打包任何 Python 依赖，反代与控制台均为零 npm 依赖的 Node 实现。
+  | 依赖 | 版本 | 用途 |
+  |---|---|---|
+  | Node.js | v24 LTS（官方二进制，仅 `node` 本体） | 控制层与控制台网关运行时 |
+  | Python | 3.12（python-build-standalone，精简版） | `fnmusic_token.py` 读取飞牛音乐登录会话（标准库 sqlite3） |
+  | ffmpeg / ffprobe | 7.0（静态构建） | WMA / APE 等格式转码、变速、探针 |
+
+  下载时校验官方 SHA-256 / md5。systemd 单元与守护进程把 `opt/bin` 放在 `PATH` 最前，并通过 `.env` 的 `FFMPEG_BIN` / `FFPROBE_BIN` 指向随包 ffmpeg；安装时不再要求应用中心装 Node.js。
+- **可选增强**：`fnmusic-ext` —— 提供在线音源、在线榜单、边听边存
+
+> miot 本身不打包任何 Python / npm 第三方依赖，反代与控制台均为零 npm 依赖的 Node 实现。
 
 ## 安装（推荐：fnOS 应用中心）
 
-从 [Releases](https://github.com/le5inioo/fnmusic-miot/releases) 下载 `fnmusic-miot-<version>.fpk`，在 fnOS 应用中心「安装本地应用」即可。安装时会自动检测飞牛音乐与 Node.js；`fnmusic-ext` 为可选，未安装将自动降级为纯本地曲库模式。
+按 NAS 架构下载对应的包（x86 用 `-x86`，ARM 用 `-arm`），在 fnOS 应用中心「安装本地应用」即可：
+
+- `fnmusic-miot-<version>-x86.fpk`
+- `fnmusic-miot-<version>-arm.fpk`
+
+安装时会自动检测飞牛音乐；`fnmusic-ext` 为可选，未安装将自动降级为纯本地曲库模式。
 
 ## 从源码构建
 
 ```bash
-# 1. 安装控制层构建依赖（esbuild / @songloft/plugin-sdk / typescript …）
-cd miot-service && npm install --no-audit --no-fund
-
-# 2. 一条命令：构建 bundle（src/ → bundle/main.js）+ 前端面板（frontend/ → static/）
-npm run build:all
+packaging/fpk/build.sh              # x86 + arm，产物在 dist/（只保留最新 2 个版本）
+packaging/fpk/build.sh --arch x86   # 只打一个架构
 ```
 
-`bundle/` 与 `static/` 为构建产物，已被 `.gitignore` 忽略；fpk 打包前需先执行上述构建。
+脚本会在缺少 `miot-service/bundle`、`static` 时自动执行 `npm install` 与 `npm run build:all`，并下载随包依赖（缓存在 `packaging/fpk/.cache/`）。需要 bash、curl、rsync、npm、tar/xz。也可单独构建控制层：
+
+```bash
+cd miot-service && npm install --no-audit --no-fund && npm run build:all
+```
+
+`bundle/` 与 `static/` 为构建产物，已被 `.gitignore` 忽略。`miot-service/src/data/`（拼音表、节假日、口令表）取自 songloft-plugin-miot，**必须入库**：此前 `miot-service/.gitignore` 的 `data/` 把它误忽略，导致干净克隆无法编译。
 
 ## 配置
 

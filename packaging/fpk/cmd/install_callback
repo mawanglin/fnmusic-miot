@@ -12,7 +12,7 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fnmusic_miot_env_setup
 
 NODE_BIN="$(fnmusic_miot_find_node)"
-[ -n "${NODE_BIN}" ] || fnmusic_miot_fail "未检测到 Node.js 运行时：请在应用中心安装 Node.js（v18 及以上）后重试"
+[ -n "${NODE_BIN}" ] || fnmusic_miot_fail "未找到随包 Node.js 运行时：安装包不完整或架构不符，请重新下载对应架构（x86/arm）的 fpk"
 
 mkdir -p "${MIOT_DATA_ROOT}/miot" "${MIOT_LOG_DIR}" 2>/dev/null || true
 chmod 0755 "${MIOT_REPO_DIR}" 2>/dev/null || true
