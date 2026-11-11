@@ -369,6 +369,11 @@ export function registerConfigHandlers(
         if (typeof newAI.api_key === 'string') {
           aiConfig.api_key = newAI.api_key;
         }
+        if (newAI.api_format !== undefined) {
+          if (newAI.api_format !== 'openai' && newAI.api_format !== 'anthropic')
+            throw new Error('api_format 必须是 openai 或 anthropic');
+          aiConfig.api_format = newAI.api_format;
+        }
         if (typeof newAI.model === 'string') {
           aiConfig.model = newAI.model;
         }

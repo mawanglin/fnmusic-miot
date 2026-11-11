@@ -1,18 +1,27 @@
 import type { AIConfig } from '../types';
-import { aiChatCompletionsUrl, aiResponsesUrl, isDashScopeEndpoint } from '../utils/ai_url';
+import { aiAnthropicMessagesUrl, aiChatCompletionsUrl, aiResponsesUrl, isDashScopeEndpoint } from '../utils/ai_url';
 import { canDisableDashScopeThinking } from '../utils/ai_thinking';
 import { readChatStream } from './sse';
 import { readResponsesStream, readResponsesText } from './responses';
+import { anthropicRequestBody, readAnthropicStream, readAnthropicText } from './anthropic';
 
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
-export type AIProtocol = 'chat_completions' | 'responses';
+export type AIProtocol = 'chat_completions' | 'responses' | 'anthropic';
 export type AIConnection = AIConfig & { api_protocol?: AIProtocol; };
 
 /** Protocol-specific wire formats; transport, scheduling and cancellation stay in AIClient. */
 export function createAIRequest(config: AIConnection, messages: AIMessage[], kind: 'chat' | 'summary' | 'memory', streaming: boolean, webSearch: boolean) {
+  if (config.api_protocol === 'anthropic') {
+    return {
+      endpoint: aiAnthropicMessagesUrl(config.api_url), thinkingDisabled: false,
+      body: anthropicRequestBody(config.model, messages, kind === 'chat' ? 2048 : 1200, streaming),
+      readJSON: (value: unknown, _onSearchCompleted?: () => void): string => readAnthropicText(value),
+      readStream: readAnthropicStream,
+    };
+  }
   const responses = config.api_protocol === 'responses';
   const endpoint = responses ? aiResponsesUrl(config.api_url) : aiChatCompletionsUrl(config.api_url);
   // Responses search on some DashScope models requires thinking; use the provider default.

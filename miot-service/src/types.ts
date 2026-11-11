@@ -297,6 +297,8 @@ export interface AIConfig {
   enabled: boolean;
   api_url: string;
   api_key: string;
+  /** 接口格式：openai（默认，OpenAI 兼容）或 anthropic（Messages 接口） */
+  api_format?: 'openai' | 'anthropic';
   custom_headers?: Record<string, string>;
   model: string;
   timeout: number;         // 秒数，默认 6

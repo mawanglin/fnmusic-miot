@@ -24,6 +24,8 @@ const presetOptions = [
   { value: 'custom', label: '自定义（OpenAI 兼容）' },
   ...AI_PRESET_PROVIDERS.map(p => ({ value: p.id, label: p.name, searchText: p.name })),
 ];
+const formatOptions = [{ value: 'openai', label: 'OpenAI 兼容（/chat/completions）' }, { value: 'anthropic', label: 'Anthropic（/messages）' }];
+const apiFormat = computed(() => state.config.ai_config.api_format === 'anthropic' ? 'anthropic' : 'openai');
 const preset = computed(() => AI_PRESET_PROVIDERS.find(p => p.id === selectedPreset.value));
 const CUSTOM_MODEL = '__custom_model__';
 // 已连上服务商时用实时模型列表；未连接/获取失败时回退到预设（与 Octop 对齐）里的模型清单。
@@ -39,13 +41,17 @@ const modelValue = computed(() => customModel.value ? CUSTOM_MODEL : state.confi
 const signature = () => {
   let headers: unknown = customHeaders.value;
   try { headers = parseAIHeaders(customHeaders.value); } catch { }
-  return JSON.stringify([state.config.ai_config.api_url, state.config.ai_config.api_key, headers]);
+  return JSON.stringify([state.config.ai_config.api_url, state.config.ai_config.api_key, state.config.ai_config.api_format, headers]);
 };
 const connectionText = computed(() => ({ idle: '尚未检测连接', loading: '检测连接中…', ok: `已连接 · ${latency.value} ms`, error: `连接失败：${modelError.value}` })[connectionState.value]);
 
 function syncPreset() {
   const url = (state.config.ai_config.api_url || '').trim().replace(/\/+$/, '');
   selectedPreset.value = AI_PRESET_PROVIDERS.find(p => [p.baseUrl, ...(p.aliases || [])].some(u => u.replace(/\/+$/, '') === url))?.id || 'custom';
+}
+function selectFormat(value: string) {
+  state.config.ai_config.api_format = value === 'anthropic' ? 'anthropic' : 'openai';
+  void saveConnection().catch(() => { });
 }
 async function saveConnection() {
   let headers: Record<string, string>;
@@ -58,6 +64,7 @@ async function applyPreset(id: string) {
   const next = AI_PRESET_PROVIDERS.find(p => p.id === id);
   if (!next) return;
   state.config.ai_config.api_url = next.baseUrl;
+  state.config.ai_config.api_format = next.format || 'openai';
   if (next.defaultModel) state.config.ai_config.model = next.defaultModel;
   customModel.value = false;
   try { await saveConnection(); } catch { }
@@ -117,6 +124,7 @@ onUnmounted(() => { alive = false; requestVersion++; });
   <SectionCard title="默认模型连接" icon="auto_awesome" description="口令分析与 AI 对话可共用此连接。即使未开启口令分析，也能用于对话。">
     <div class="form-body">
       <div class="field"><label class="field-label">服务商</label><SlSelect :model-value="selectedPreset" :options="presetOptions" aria-label="选择 AI 预设服务商" @update:model-value="applyPreset" /></div>
+      <div v-if="selectedPreset === 'custom'" class="field"><label class="field-label">接口格式</label><SlSelect :model-value="apiFormat" :options="formatOptions" aria-label="选择 AI 接口格式" @update:model-value="selectFormat" /><p class="field-help">Anthropic 格式地址填到版本段即可（如 https://api.anthropic.com/v1），使用 x-api-key 认证。</p></div>
       <div v-if="selectedPreset === 'custom'" class="field"><label class="field-label">API 地址</label><SlInput v-model="state.config.ai_config.api_url" aria-label="默认 AI API 地址" placeholder="https://api.example.com/v1" @change="saveConnection().catch(() => {})" /></div>
       <div class="field"><label class="field-label">API 密钥</label><SlInput v-model="state.config.ai_config.api_key" type="password" aria-label="默认 AI API 密钥" :placeholder="preset?.keyPrefix ? `${preset.keyPrefix}…` : ''" @change="saveConnection().catch(() => {})" /></div>
       <AIHeadersField v-model="customHeaders" label="默认 AI 自定义请求头" @change="saveConnection().catch(() => {})" />

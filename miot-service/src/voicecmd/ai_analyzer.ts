@@ -4,9 +4,10 @@
 /// <reference types="@songloft/plugin-sdk" />
 
 import type { AIConfig, AIAnalysisResult } from '../types';
-import { aiChatCompletionsUrl } from '../utils/ai_url';
+import { aiAnthropicMessagesUrl, aiChatCompletionsUrl } from '../utils/ai_url';
+import { readAnthropicText } from '../ai/anthropic';
 import { requestAI } from '../utils/ai_request';
-import { aiRequestHeaders } from '../utils/ai_headers';
+import { aiRequestHeaders, isAnthropicConnection } from '../utils/ai_headers';
 import { canDisableDashScopeThinking } from '../utils/ai_thinking';
 
 /** AI System Prompt */
@@ -99,6 +100,7 @@ export class AIAnalyzer {
    * 调用 LLM API
    */
   private async callAI(query: string, config: AIConfig): Promise<AIAnalysisResult> {
+    if (isAnthropicConnection(config)) return this.callAnthropic(query, config);
     // 与模型列表端点共用同一套 /v1 归一化规则，避免两处对 api_url 的假设不一致
     const endpoint = aiChatCompletionsUrl(config.api_url);
 
@@ -149,6 +151,23 @@ export class AIAnalyzer {
 
       const result = this.parseResponse(content);
       songloft.log.info(`[AIAnalyzer] id=${requestId} parsed=true confidence=${result.confidence}`);
+      return result;
+    });
+  }
+
+  /** Anthropic Messages 格式：system 顶层、max_tokens 必填；JSON 靠提示词约束，由 parseResponse 兜底提取。 */
+  private async callAnthropic(query: string, config: AIConfig): Promise<AIAnalysisResult> {
+    const endpoint = aiAnthropicMessagesUrl(config.api_url);
+    const body = { model: config.model, max_tokens: 1024, system: AI_SYSTEM_PROMPT, messages: [{ role: 'user', content: `用户指令：${query}` }] };
+    return requestAI(endpoint, {
+      method: 'POST',
+      headers: aiRequestHeaders(config),
+      body: JSON.stringify(body),
+    }, config.timeout, { kind: 'analysis', model: config.model, thinkingDisabled: false, queryChars: query.length }, async (resp, requestId) => {
+      if (!resp.ok) throw new Error(`API error: ${resp.status} ${await resp.text()}`);
+      const content = readAnthropicText(await resp.json());
+      const result = this.parseResponse(content);
+      songloft.log.info(`[AIAnalyzer] id=${requestId} format=anthropic parsed=true confidence=${result.confidence}`);
       return result;
     });
   }

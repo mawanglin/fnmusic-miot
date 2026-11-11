@@ -17,6 +17,8 @@ export interface AIPresetModel {
 export interface AIPresetProvider {
   id: string;
   name: string;
+  /** 接口格式，缺省为 openai（OpenAI 兼容） */
+  format?: 'openai' | 'anthropic';
   baseUrl: string;
   defaultModel: string;
   websiteUrl: string;
@@ -293,6 +295,61 @@ export const AI_PRESET_PROVIDERS: AIPresetProvider[] = [
       { id: 'gemma4', name: 'gemma4' },
       { id: 'llama3', name: 'llama3', contextWindow: 8192 },
       { id: 'mistral', name: 'mistral', contextWindow: 32768 },
+    ],
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic 官方',
+    format: 'anthropic',
+    baseUrl: 'https://api.anthropic.com/v1',
+    defaultModel: 'claude-haiku-5-5',
+    websiteUrl: 'https://www.anthropic.com',
+    apiKeyUrl: 'https://console.anthropic.com/settings/keys',
+    keyPrefix: 'sk-ant-',
+    models: [
+      { id: 'claude-fable-5-2', name: 'Claude Fable 5.2', contextWindow: 1000000, multimodal: true, reasoning: true },
+      { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', contextWindow: 1000000, multimodal: true, reasoning: true },
+      { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', contextWindow: 1000000, multimodal: true, reasoning: true },
+      { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5', contextWindow: 1000000, multimodal: true, reasoning: true },
+    ],
+  },
+  {
+    id: 'opencode-zen',
+    name: 'OpenCode Zen（Anthropic 格式）',
+    format: 'anthropic',
+    baseUrl: 'https://opencode.ai/zen',
+    defaultModel: 'claude-haiku-5-5',
+    websiteUrl: 'https://opencode.ai',
+    apiKeyUrl: 'https://opencode.ai/auth',
+    keyPrefix: 'sk-',
+    models: [
+      { id: 'claude-fable-5-2', name: 'Claude Fable 5.2', reasoning: true },
+      { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', reasoning: true },
+      { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', reasoning: true },
+      { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5', reasoning: true },
+      { id: 'qwen3.8-max', name: 'Qwen3.8 Max' },
+      { id: 'qwen3.8-flash', name: 'Qwen3.8 Flash' },
+      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', contextWindow: 200000, multimodal: true, reasoning: true },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', contextWindow: 200000, multimodal: true, reasoning: true },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', contextWindow: 200000, multimodal: true },
+      { id: 'qwen3.6-plus', name: 'Qwen3.6 Plus', contextWindow: 1000000 },
+    ],
+  },
+  {
+    id: 'opencode-go',
+    name: 'OpenCode Go（Anthropic 格式）',
+    format: 'anthropic',
+    baseUrl: 'https://opencode.ai/zen/go',
+    defaultModel: 'minimax-m3.1-flash',
+    websiteUrl: 'https://opencode.ai',
+    apiKeyUrl: 'https://opencode.ai/auth',
+    keyPrefix: 'sk-',
+    models: [
+      { id: 'minimax-m3.1-flash', name: 'MiniMax M3.1 Flash', reasoning: true },
+      { id: 'qwen3.8-max', name: 'Qwen3.8 Max' },
+      { id: 'qwen3.8-flash', name: 'Qwen3.8 Flash' },
+      { id: 'minimax-m3', name: 'MiniMax M3', reasoning: true },
+      { id: 'qwen3.7-plus', name: 'Qwen3.7 Plus', contextWindow: 1000000 },
     ],
   },
 ];

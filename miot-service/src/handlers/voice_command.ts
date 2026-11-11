@@ -11,7 +11,7 @@ import { AIAnalyzer } from '../voicecmd/ai_analyzer';
 import { VoiceEngine } from '../voicecmd/engine';
 import { aiModelsUrl, maskUrl } from '../utils/ai_url';
 import { requestAI } from '../utils/ai_request';
-import { aiRequestHeaders } from '../utils/ai_headers';
+import { aiRequestHeaders, isAnthropicConnection } from '../utils/ai_headers';
 
 /** 解析请求体（兼容 Uint8Array 和 string） */
 function parseBody(req: HTTPRequest): any {
@@ -138,7 +138,7 @@ export function registerVoiceCommandHandlers(
 
       // 统一经 normalizeAiBaseUrl 归一：用户填 https://host 或 https://host/v1
       // 都得到「含 /v1 的 base」，避免拼出 .../v1/v1/models 这种重复前缀
-      modelsUrl = aiModelsUrl(aiConfig.api_url);
+      modelsUrl = aiModelsUrl(aiConfig.api_url, isAnthropicConnection(aiConfig));
       const models = await requestAI(modelsUrl, {
         method: 'GET',
         headers: aiRequestHeaders(aiConfig),

@@ -34,15 +34,22 @@ export function normalizeAiBaseUrl(apiUrl: string): string {
 }
 
 /** 模型列表端点：GET /v1/models */
-export function aiModelsUrl(apiUrl: string): string {
+export function aiModelsUrl(apiUrl: string, anthropic = false): string {
   const base = normalizeAiBaseUrl(apiUrl);
-  return base ? `${base}/models` : '';
+  // Anthropic 的模型列表默认每页只有 20 个，放大到上限。
+  return base ? `${base}/models${anthropic ? '?limit=1000' : ''}` : '';
 }
 
 /** 对话补全端点：POST /v1/chat/completions */
 export function aiChatCompletionsUrl(apiUrl: string): string {
   const base = normalizeAiBaseUrl(apiUrl);
   return base ? `${base}/chat/completions` : '';
+}
+
+/** Anthropic Messages 端点：POST /v1/messages（base 无版本段时同样补 /v1） */
+export function aiAnthropicMessagesUrl(apiUrl: string): string {
+  const base = normalizeAiBaseUrl(apiUrl);
+  return base ? `${base}/messages` : '';
 }
 
 /** Responses endpoint on the same versioned connection base. */

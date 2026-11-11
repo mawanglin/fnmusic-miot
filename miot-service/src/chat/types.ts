@@ -50,7 +50,7 @@ export function validateChatConfig(raw: Partial<ChatConfig>, current = DEFAULT_C
     }
   }
   if (raw.api_protocol !== undefined) {
-    if (!['chat_completions', 'responses'].includes(raw.api_protocol))
+    if (!['chat_completions', 'responses', 'anthropic'].includes(raw.api_protocol))
       throw new Error('api_protocol 无效');
     next.api_protocol = raw.api_protocol;
   }
@@ -83,7 +83,11 @@ export function readChatConfig(raw: Partial<ChatConfig>): ChatConfig {
 }
 export function chatConnection(config: ChatConfig, analysis: AIConfig): AIConnection {
   const base = config.connection === 'analysis' ? analysis : config;
-  return { enabled: config.enabled, api_protocol: config.api_protocol, api_url: base.api_url, api_key: base.api_key, ...(base.custom_headers !== undefined ? { custom_headers: base.custom_headers } : {}), model: config.model || base.model, timeout: config.timeout };
+  // 复用默认连接时，接口格式跟随默认连接；独立连接用自己的 api_protocol。
+  const protocol: AIProtocol = config.connection === 'analysis'
+    ? (analysis.api_format === 'anthropic' ? 'anthropic' : config.api_protocol === 'anthropic' ? 'chat_completions' : config.api_protocol)
+    : config.api_protocol;
+  return { enabled: config.enabled, api_protocol: protocol, api_url: base.api_url, api_key: base.api_key, ...(base.custom_headers !== undefined ? { custom_headers: base.custom_headers } : {}), model: config.model || base.model, timeout: config.timeout };
 }
 export type ChatPhase = 'queued' | 'preparing' | 'generating' | 'speaking' | 'resuming' | 'completed' | 'cancelled' | 'failed' | 'unknown';
 export interface ChatTurn {

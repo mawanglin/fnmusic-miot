@@ -11,6 +11,8 @@ export interface AIConfig {
   enabled?: boolean;
   api_url?: string;
   api_key?: string;
+  /** 接口格式：openai（OpenAI 兼容）或 anthropic（Messages） */
+  api_format?: 'openai' | 'anthropic';
   custom_headers?: Record<string, string>;
   model?: string;
   timeout?: number;

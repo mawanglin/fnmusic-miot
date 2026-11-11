@@ -32,7 +32,8 @@ const target = computed(() => ({ account_id: state.currentAccountId, device_id: 
 const targetQuery = computed(() => query(target.value));
 const lastContextTurns = ref(3);
 const contextEnabled = computed(() => config.context_turns > 0);
-const webSearchAvailable = computed(() => config.api_protocol === 'responses' || isDashScopeEndpoint(config.connection === 'independent' ? config.api_url : state.config.ai_config.api_url || ''));
+const effectiveAnthropic = computed(() => config.connection === 'analysis' ? state.config.ai_config.api_format === 'anthropic' : config.api_protocol === 'anthropic');
+const webSearchAvailable = computed(() => !effectiveAnthropic.value && (config.api_protocol === 'responses' || isDashScopeEndpoint(config.connection === 'independent' ? config.api_url : state.config.ai_config.api_url || '')));
 const connectionIdentity = computed(() => JSON.stringify({
   connection: config.connection, api_url: config.api_url, api_key: config.api_key,
   model: config.model, timeout: config.timeout, api_protocol: config.api_protocol,
@@ -41,7 +42,7 @@ const connectionIdentity = computed(() => JSON.stringify({
 }));
 function setWebSearch(enabled: boolean) {
   config.web_search_enabled = enabled;
-  if (enabled && !webSearchAvailable.value) config.api_protocol = 'responses';
+  if (enabled && !webSearchAvailable.value && !effectiveAnthropic.value) config.api_protocol = 'responses';
 }
 async function testConnection(search: boolean) {
   const version = ++testVersion, identity = connectionIdentity.value;
@@ -177,13 +178,14 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
         <SlSwitch :model-value="config.web_search_enabled" aria-label="联网搜索" @update:model-value="setWebSearch($event)" />
       </SettingRow>
       <p v-if="config.web_search_enabled && webSearchAvailable">由模型决定是否搜索。建议先测试，确认当前服务和模型是否支持。</p>
-      <div v-if="config.web_search_enabled && !webSearchAvailable" class="chat-search-help">
+      <p v-if="config.web_search_enabled && effectiveAnthropic">Anthropic 格式暂不支持联网搜索，开关将不生效。</p>
+      <div v-if="config.web_search_enabled && !webSearchAvailable && !effectiveAnthropic" class="chat-search-help">
         <p>当前连接方式尚未启用搜索支持。</p>
         <SlButton label="启用搜索连接" variant="outlined" @click="config.api_protocol = 'responses'" />
       </div>
       <div class="chat-actions">
         <SlButton label="测试连接" variant="outlined" :disabled="busy || !loaded" @click="safeAction(() => testConnection(false))" />
-        <SlButton v-if="config.web_search_enabled" label="测试联网搜索" variant="outlined" :disabled="busy || !loaded || !webSearchAvailable" @click="safeAction(() => testConnection(true))" />
+        <SlButton v-if="config.web_search_enabled && !effectiveAnthropic" label="测试联网搜索" variant="outlined" :disabled="busy || !loaded || !webSearchAvailable" @click="safeAction(() => testConnection(true))" />
       </div>
       <p class="chat-help">使用当前填写的内容发送一次简短提问，无需先保存，不播放也不保存聊天记录。</p>
       <p v-if="connectionTesting" role="status">正在测试当前连接，请稍候……</p>
@@ -204,7 +206,8 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
         </template>
       </div>
       <SlDisclosure title="高级设置" description="连接方式、自定义请求头、角色与其他选项">
-      <label class="chat-field">连接方式<SlSelect v-model="config.api_protocol" :options="[{ value: 'chat_completions', label: '兼容模式（Chat Completions）' }, { value: 'responses', label: '搜索工具模式（Responses）' }]" aria-label="问答接口协议" /></label>
+      <label class="chat-field">连接方式<SlSelect v-model="config.api_protocol" :options="[{ value: 'chat_completions', label: '兼容模式（Chat Completions）' }, { value: 'responses', label: '搜索工具模式（Responses）' }, ...(config.connection === 'independent' ? [{ value: 'anthropic', label: 'Anthropic（Messages）' }] : [])]" :disabled="config.connection === 'analysis' && state.config.ai_config.api_format === 'anthropic'" aria-label="问答接口协议" /></label>
+      <p v-if="config.connection === 'analysis' && state.config.ai_config.api_format === 'anthropic'">复用默认连接，接口格式跟随默认连接（Anthropic）。</p>
       <p>普通连接可保留兼容模式。自定义服务的内置搜索可尝试搜索工具模式，需服务商和模型支持 Responses。切换后请重新测试。</p>
       <AIHeadersField v-if="config.connection === 'independent'" v-model="customHeaders" label="问答自定义请求头" />
       <label class="chat-field">请求超时（1–30 秒）<SlInput :model-value="String(config.timeout)" type="number" aria-label="问答超时" @update:model-value="config.timeout = Number($event)" /></label>

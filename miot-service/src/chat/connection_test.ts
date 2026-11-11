@@ -12,6 +12,8 @@ export interface ConnectionTestResult {
 /** Probe the draft connection without devices, history, config writes or playback. */
 export async function testChatConnection(client: AIClient, config: ChatConfig, analysis: AIConfig, search: boolean): Promise<ConnectionTestResult> {
   const connection = chatConnection(config, analysis);
+  if (search && connection.api_protocol === 'anthropic')
+    throw new Error('Anthropic 格式暂不支持联网搜索测试');
   if (search && (!config.web_search_enabled || (connection.api_protocol !== 'responses' && !isDashScopeEndpoint(connection.api_url))))
     throw new Error('请先启用联网搜索；若当前连接方式不支持，可在高级设置中切换');
   let completed = false;

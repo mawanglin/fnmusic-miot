@@ -104,6 +104,15 @@ cd miot-service && npm install --no-audit --no-fund && npm run build:all
 
 相关接口（需令牌）：`GET /fnmusic/status`、`POST /fnmusic/test`、`/fnmusic/detect`、`/fnmusic/config`。探测逻辑与测试见 `miot-service/host/gateway.mjs`、`miot-service/tests/gateway.test.mjs`（`npm test`）。
 
+## AI 模型连接（OpenAI / Anthropic 两种格式）
+
+设置 → AI 模型 里的「默认模型连接」同时供口令分析与 AI 对话使用：
+
+- 服务商预设与 Octop（mawanglin.octop）的预设对齐：硅基流动、智谱、百炼、DeepSeek、火山方舟、Kimi、MiniMax、腾讯云 TokenHub、小米 MiMo、魔搭、OpenAI、Gemini、Groq、OpenRouter、Ollama（OpenAI 兼容），以及 Anthropic 官方、OpenCode Zen / Go（Anthropic 格式）。默认模型选低延迟的 Flash/Lite 档；未连上服务商时下拉框显示预设里的模型清单。
+- **接口格式**：选预设会自动带上格式；选「自定义」时可手动选 `OpenAI 兼容`（`/chat/completions`，`Authorization: Bearer`）或 `Anthropic`（`/v1/messages`，`x-api-key` + `anthropic-version: 2023-06-01`，可用自定义请求头覆盖版本）。
+- AI 对话选「复用默认连接」时格式跟随默认连接；选「独立连接」时可在高级设置里单独选 `Anthropic（Messages）`。
+- Anthropic 格式下口令分析、对话（含流式）、模型列表均可用；**联网搜索暂不支持**。
+
 ## 配置
 
 - 语音口令、设备绑定、播放偏好等均在控制台 UI 内配置，持久化于应用数据目录

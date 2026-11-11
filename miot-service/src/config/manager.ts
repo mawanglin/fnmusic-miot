@@ -133,6 +133,7 @@ function defaultAIConfig(): AIConfig {
     enabled: false,
     api_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     api_key: '',
+    api_format: 'openai',
     custom_headers: {},
     model: 'qwen-flash',
     timeout: 6,

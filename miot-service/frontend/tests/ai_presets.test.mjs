@@ -19,3 +19,10 @@ test('与 Octop 对齐：关键服务商地址与默认模型', () => {
   assert.equal(by.minimax.baseUrl, 'https://api.minimaxi.com/v1');
   assert.ok(by.minimax.aliases.includes('https://api.minimax.chat/v1'));
 });
+
+test('Anthropic 格式预设：地址与格式', () => {
+  const a = P.filter(p => p.format === 'anthropic');
+  assert.ok(a.length >= 3);
+  assert.equal(P.find(p => p.id === 'anthropic').baseUrl, 'https://api.anthropic.com/v1');
+  assert.ok(P.filter(p => p.format === undefined).every(p => !/anthropic/.test(p.id)));
+});
