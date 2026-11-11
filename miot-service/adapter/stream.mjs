@@ -291,9 +291,16 @@ export function createStreamHandler({ fn, music, cfg, log }) {
 // Sources, in order: a sidecar .lrc next to the audio file (FeiNiu Music keeps
 // those), then the official /lyric/list API. Returning 404 is intentional --
 // handlers/lyric.ts normalises it into an empty 200 payload.
-function lyricTextOf(data) {
+export function lyricTextOf(data) {
   if (typeof data === 'string') return data;
   if (!data || typeof data !== 'object') return '';
+  // 官方 /lyric/list 返回 { list: [{ guid, content, source, isLRC, offset }], preferred }：
+  // 与官方前端一致，优先取 preferred 指向的那份，再退回第一份有内容的。
+  if (Array.isArray(data.list)) {
+    const usable = data.list.filter((item) => item && typeof item.content === 'string' && item.content.trim());
+    const preferred = usable.find((item) => item.guid && item.guid === data.preferred);
+    if (preferred || usable[0]) return (preferred || usable[0]).content;
+  }
   for (const k of ['lyric', 'lyrics', 'content', 'text', 'lrc']) {
     if (typeof data[k] === 'string' && data[k].trim()) return data[k];
   }

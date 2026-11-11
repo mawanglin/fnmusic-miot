@@ -357,7 +357,8 @@ export function createFnMusicClient({ baseUrl, username, password, tokenProvider
     removePlaylistTracks: (id, guids) => apiCall('POST', '/playlist/remove-track', {}, { playlistId: id, trackGUIDs: guids }),
     createPlaylist: (name) => apiCall('POST', '/playlist/create', {}, { name }),
     deletePlaylist: (id) => apiCall('POST', '/playlist/delete', {}, { playlistId: id }),
-    getLyric: (guid) => apiCall('GET', '/lyric/list', { guid }),
+    // 官方前端：I.lyric.list({ trackGUID })；传 guid 会返回 code=100002 invalid arguments。
+    getLyric: (guid) => apiCall('GET', '/lyric/list', { trackGUID: guid }),
     getCover: (coverId) => apiCall('GET', '/static/cover', { coverId }),
   };
 }

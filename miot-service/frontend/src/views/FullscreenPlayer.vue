@@ -372,7 +372,7 @@ watch(() => navigation.playerPage, showMobilePage);
                 <div v-for="(line, index) in lyrics" :key="`${line.time}-${index}`" class="lyric-line" :class="{ active: index === activeLyric }">{{ line.text }}</div>
               </template>
               <div v-else class="lyrics-empty">
-                <span role="status">{{ lyricLoading ? '正在获取歌词…' : lyricError || '暂无歌词，请确认已安装并启用歌词搜索插件' }}</span>
+                <span role="status">{{ lyricLoading ? '正在获取歌词…' : lyricError || '这首歌暂无歌词' }}</span>
                 <SlButton v-if="state.player.current_song" variant="text" label="重新获取歌词" :disabled="lyricLoading" @click="retryLyrics" />
               </div>
             </section>
@@ -397,7 +397,7 @@ watch(() => navigation.playerPage, showMobilePage);
                   <div v-for="(line, index) in lyrics" :key="`${line.time}-${index}`" class="lyric-line" :class="{ active: index === activeLyric }">{{ line.text }}</div>
                 </template>
                 <div v-else class="lyrics-empty">
-                  <span role="status">{{ lyricLoading ? '正在获取歌词…' : lyricError || '暂无歌词，请确认已安装并启用歌词搜索插件' }}</span>
+                  <span role="status">{{ lyricLoading ? '正在获取歌词…' : lyricError || '这首歌暂无歌词' }}</span>
                   <SlButton v-if="state.player.current_song" variant="text" label="重新获取歌词" :disabled="lyricLoading" @click="retryLyrics" />
                 </div>
               </section>
