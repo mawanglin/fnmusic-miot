@@ -244,7 +244,7 @@ _miot_env_del() {
 }
 
 fnmusic_miot_env_setup() {
-    local env_file="${MIOT_REPO_DIR}/.env" ip="" port="6688" gw_conf="" p="" node_bin=""
+    local env_file="${MIOT_REPO_DIR}/.env" ip="" port="6688" gw_conf="" p="" node_bin="" gw_detected=0 cur_port="" cur_url=""
     [ -f "${env_file}" ] || : > "${env_file}"
 
     ip="$(ip -4 -o addr show scope global 2>/dev/null \
@@ -254,8 +254,14 @@ fnmusic_miot_env_setup() {
     fi
     gw_conf="/usr/trim/etc/network_gateway_setting.conf"
     if [ -r "${gw_conf}" ]; then
-        p="$(sed -n 's/.*schema\.http\.port[^0-9]*\([0-9]\{2,5\}\).*/\1/p' "${gw_conf}" | head -n1 || true)"
-        [ -n "${p}" ] && port="${p}"
+        # 实际格式是嵌套 JSON：{"schema":{"http":{"port":5666},"https":{...}}}。
+        # 先按嵌套结构取 http.port，取不到再兼容旧的扁平写法 schema.http.port。
+        p="$(tr -d '\n\r\t ' < "${gw_conf}" \
+              | sed -n 's/.*"http":{"port":\([0-9]\{2,5\}\)[^0-9].*/\1/p' | head -n1 || true)"
+        if [ -z "${p}" ]; then
+            p="$(sed -n 's/.*schema\.http\.port[^0-9]*\([0-9]\{2,5\}\).*/\1/p' "${gw_conf}" | head -n1 || true)"
+        fi
+        [ -n "${p}" ] && { port="${p}"; gw_detected=1; }
     fi
 
     node_bin="$(fnmusic_miot_find_node)"
@@ -287,6 +293,18 @@ fnmusic_miot_env_setup() {
     _miot_env_add MIOT_REQUIRE_AUTH true
     _miot_env_add MIOT_SERVER_HOST_FORCE false
     _miot_env_add FNMUSIC_MUSIC_DB_DIR "/usr/local/apps/@appdata/trim.music/db"
+    # 旧版没解析出网关端口时会把默认值 6688 写进 .env，而「只补缺失」不会再纠正。
+    # 现在探测到了真实端口且与 .env 里的 6688 不同，就把端口和 BASE_URL 校正；
+    # 用户手工改成其他值的不动。
+    cur_port="$(fnmusic_miot_env_get FNMUSIC_GATEWAY_PORT)"
+    if [ "${gw_detected}" -eq 1 ] && [ "${cur_port}" = "6688" ] && [ "${port}" != "6688" ]; then
+        _miot_env_set FNMUSIC_GATEWAY_PORT "${port}"
+        cur_url="$(fnmusic_miot_env_get FNMUSIC_BASE_URL)"
+        case "${cur_url}" in
+            http://*:6688) _miot_env_set FNMUSIC_BASE_URL "${cur_url%:6688}:${port}" ;;
+        esac
+        echo "[fnmusic-miot] 已把误写的网关端口 6688 校正为 ${port}" >> "${FNMUSIC_MIOT_LOG}" 2>&1
+    fi
     if [ -n "${ip}" ]; then
         _miot_env_add FNMUSIC_NAS_IP "${ip}"
         _miot_env_add FNMUSIC_GATEWAY_PORT "${port}"
