@@ -21,10 +21,12 @@ const testQuery = ref(''), testResult = ref(''), testBusy = ref(false);
 const customHeaders = ref(JSON.stringify(state.config.ai_config.custom_headers || {}, null, 2));
 let alive = true, requestVersion = 0;
 const presetOptions = [
-  { value: 'custom', label: '自定义（OpenAI 兼容）' },
-  ...AI_PRESET_PROVIDERS.map(p => ({ value: p.id, label: p.name, searchText: p.name })),
+  { value: 'custom', label: '自定义', searchText: '自定义 custom' },
+  ...AI_PRESET_PROVIDERS.map(p => ({ value: p.id, label: p.name, searchText: `${p.group} ${p.name} ${p.id} ${p.format}` })),
 ];
 const formatOptions = [{ value: 'openai', label: 'OpenAI 兼容（/chat/completions）' }, { value: 'anthropic', label: 'Anthropic（/messages）' }];
+// 编程 / Agent / Token 套餐类接入点：多数服务条款限定在特定工具中使用。
+const isPlan = computed(() => /plan/i.test(selectedPreset.value));
 const apiFormat = computed(() => state.config.ai_config.api_format === 'anthropic' ? 'anthropic' : 'openai');
 const preset = computed(() => AI_PRESET_PROVIDERS.find(p => p.id === selectedPreset.value));
 const CUSTOM_MODEL = '__custom_model__';
@@ -45,13 +47,24 @@ const signature = () => {
 };
 const connectionText = computed(() => ({ idle: '尚未检测连接', loading: '检测连接中…', ok: `已连接 · ${latency.value} ms`, error: `连接失败：${modelError.value}` })[connectionState.value]);
 
+// 地址 + 格式都一致才算该预设；同一地址有多个预设时（如腾讯 Token Plan / 混元 Token Plan）优先上次所选。
 function syncPreset() {
   const url = (state.config.ai_config.api_url || '').trim().replace(/\/+$/, '');
-  selectedPreset.value = AI_PRESET_PROVIDERS.find(p => [p.baseUrl, ...(p.aliases || [])].some(u => u.replace(/\/+$/, '') === url))?.id || 'custom';
+  const matches = AI_PRESET_PROVIDERS.filter(p => p.format === apiFormat.value
+    && [p.baseUrl, ...(p.aliases || [])].some(u => u.replace(/\/+$/, '') === url));
+  selectedPreset.value = (matches.find(p => p.id === state.config.ai_config.api_provider) || matches[0])?.id || 'custom';
 }
-function selectFormat(value: string) {
-  state.config.ai_config.api_format = value === 'anthropic' ? 'anthropic' : 'openai';
-  void saveConnection().catch(() => { });
+// 切换格式：同厂商有该格式的预设（如 OpenCode）就换过去；否则转为自定义，保留地址供用户改。
+async function selectFormat(value: string) {
+  const format = value === 'anthropic' ? 'anthropic' : 'openai';
+  if (format === apiFormat.value) return;
+  const sibling = preset.value && AI_PRESET_PROVIDERS.find(p => p.group === preset.value!.group && p.format === format
+    && p.name.replace(/（.*?）/g, '') === preset.value!.name.replace(/（.*?）/g, ''));
+  if (sibling) { await applyPreset(sibling.id); return; }
+  state.config.ai_config.api_format = format;
+  state.config.ai_config.api_provider = 'custom';
+  selectedPreset.value = 'custom';
+  try { await saveConnection(); } catch { }
 }
 async function saveConnection() {
   let headers: Record<string, string>;
@@ -62,9 +75,15 @@ async function saveConnection() {
 async function applyPreset(id: string) {
   selectedPreset.value = id;
   const next = AI_PRESET_PROVIDERS.find(p => p.id === id);
-  if (!next) return;
+  if (!next) {
+    // 切到自定义：保留当前地址与格式，只记住选择，便于在下方直接修改。
+    state.config.ai_config.api_provider = 'custom';
+    try { await saveConnection(); } catch { }
+    return;
+  }
   state.config.ai_config.api_url = next.baseUrl;
-  state.config.ai_config.api_format = next.format || 'openai';
+  state.config.ai_config.api_format = next.format;
+  state.config.ai_config.api_provider = next.id;
   if (next.defaultModel) state.config.ai_config.model = next.defaultModel;
   customModel.value = false;
   try { await saveConnection(); } catch { }
@@ -123,9 +142,17 @@ onUnmounted(() => { alive = false; requestVersion++; });
 <template>
   <SectionCard title="默认模型连接" icon="auto_awesome" description="口令分析与 AI 对话可共用此连接。即使未开启口令分析，也能用于对话。">
     <div class="form-body">
-      <div class="field"><label class="field-label">服务商</label><SlSelect :model-value="selectedPreset" :options="presetOptions" aria-label="选择 AI 预设服务商" @update:model-value="applyPreset" /></div>
-      <div v-if="selectedPreset === 'custom'" class="field"><label class="field-label">接口格式</label><SlSelect :model-value="apiFormat" :options="formatOptions" aria-label="选择 AI 接口格式" @update:model-value="selectFormat" /><p class="field-help">Anthropic 格式地址填到版本段即可（如 https://api.anthropic.com/v1），使用 x-api-key 认证。</p></div>
-      <div v-if="selectedPreset === 'custom'" class="field"><label class="field-label">API 地址</label><SlInput v-model="state.config.ai_config.api_url" aria-label="默认 AI API 地址" placeholder="https://api.example.com/v1" @change="saveConnection().catch(() => {})" /></div>
+      <div class="field">
+        <label class="field-label">服务商</label>
+        <SlSelect :model-value="selectedPreset" :options="presetOptions" aria-label="选择 AI 预设服务商" searchable search-placeholder="搜索服务商、Coding Plan、Token Plan…" @update:model-value="applyPreset" />
+        <p v-if="isPlan" class="field-help">套餐类接入点（Coding / Agent / Token Plan）需单独开通，部分服务条款限定在编程或 Agent 工具中使用，请先确认允许此用途。</p>
+      </div>
+      <div class="field">
+        <label class="field-label">接口格式</label>
+        <SlSelect :model-value="apiFormat" :options="formatOptions" aria-label="选择 AI 接口格式" @update:model-value="selectFormat" />
+        <p class="field-help">选预设会自动带上格式。OpenAI 兼容用 Bearer 认证；Anthropic 用 x-api-key 认证，地址填到版本段或根路径即可（如 https://api.anthropic.com/v1）。</p>
+      </div>
+      <div class="field"><label class="field-label">API 地址</label><SlInput v-model="state.config.ai_config.api_url" aria-label="默认 AI API 地址" :placeholder="apiFormat === 'anthropic' ? 'https://api.anthropic.com/v1' : 'https://api.example.com/v1'" @change="saveConnection().catch(() => {})" /></div>
       <div class="field"><label class="field-label">API 密钥</label><SlInput v-model="state.config.ai_config.api_key" type="password" aria-label="默认 AI API 密钥" :placeholder="preset?.keyPrefix ? `${preset.keyPrefix}…` : ''" @change="saveConnection().catch(() => {})" /></div>
       <AIHeadersField v-model="customHeaders" label="默认 AI 自定义请求头" @change="saveConnection().catch(() => {})" />
       <a v-if="preset" class="preset-key-link" :href="preset.apiKeyUrl" target="_blank" rel="noopener">前往 {{ preset.name }} 获取 API Key ↗</a>

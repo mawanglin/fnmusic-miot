@@ -167,10 +167,11 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
       <div class="form-body">
       <SlSelect :disabled="busy || !loaded" v-model="config.connection" :options="[{ value: 'analysis', label: '复用默认模型连接' }, { value: 'independent', label: '独立连接' }]" aria-label="对话模型连接" />
       <template v-if="config.connection === 'independent'">
+        <label class="chat-field">接口格式<SlSelect :model-value="config.api_protocol === 'anthropic' ? 'anthropic' : 'openai'" :options="[{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'anthropic', label: 'Anthropic（Messages）' }]" aria-label="问答接口格式" @update:model-value="config.api_protocol = $event === 'anthropic' ? 'anthropic' : (config.api_protocol === 'anthropic' ? 'chat_completions' : config.api_protocol)" /></label>
         <label class="chat-field">服务地址<SlInput v-model="config.api_url" type="url" aria-label="问答 API 地址" placeholder="粘贴服务商提供的 API 基础地址" /><small>例如 https://example.com/v1，请勿粘贴聊天或搜索请求的完整地址。</small></label>
         <label class="chat-field">API 密钥<SlInput v-model="config.api_key" type="password" aria-label="问答 API 密钥" /></label>
       </template>
-      <p v-if="config.connection === 'analysis'">默认模型：{{ state.config.ai_config.model || '尚未配置' }}。同时复用默认连接的自定义请求头。启用对话不需要开启口令分析。</p>
+      <p v-if="config.connection === 'analysis'">默认模型：{{ state.config.ai_config.model || '尚未配置' }}（{{ state.config.ai_config.api_format === 'anthropic' ? 'Anthropic 格式' : 'OpenAI 兼容格式' }}）。同时复用默认连接的自定义请求头。启用对话不需要开启口令分析。</p>
       <label class="chat-field">问答模型<SlInput v-model="config.model" aria-label="问答模型" placeholder="留空则使用默认模型" /></label>
       <SlButton v-if="config.connection === 'independent'" label="保存并获取模型" variant="outlined" :disabled="busy || !loaded" @click="safeAction(async () => { await save(); models = (await get<{ models: Array<{ id: string }> }>('/chat/models')).models; })" />
       <SlSelect :disabled="busy || !loaded" v-if="models.length" v-model="config.model" :options="models.map(m => ({ value: m.id, label: m.id }))" aria-label="可用问答模型" />

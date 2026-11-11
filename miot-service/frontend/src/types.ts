@@ -13,6 +13,8 @@ export interface AIConfig {
   api_key?: string;
   /** 接口格式：openai（OpenAI 兼容）或 anthropic（Messages） */
   api_format?: 'openai' | 'anthropic';
+  /** 所选服务商预设 id，仅用于界面回显 */
+  api_provider?: string;
   custom_headers?: Record<string, string>;
   model?: string;
   timeout?: number;

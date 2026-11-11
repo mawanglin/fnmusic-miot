@@ -135,7 +135,7 @@ function defaultAIConfig(): AIConfig {
     api_key: '',
     api_format: 'openai',
     custom_headers: {},
-    model: 'qwen-flash',
+    model: 'qwen3.8-flash',
     timeout: 6,
   };
 }

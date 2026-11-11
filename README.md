@@ -106,12 +106,15 @@ cd miot-service && npm install --no-audit --no-fund && npm run build:all
 
 ## AI 模型连接（OpenAI / Anthropic 两种格式）
 
-设置 → AI 模型 里的「默认模型连接」同时供口令分析与 AI 对话使用：
+设置 → AI 设置 →「默认模型连接」同时供口令分析与 AI 对话使用：
 
-- 服务商预设与 Octop（mawanglin.octop）的预设对齐：硅基流动、智谱、百炼、DeepSeek、火山方舟、Kimi、MiniMax、腾讯云 TokenHub、小米 MiMo、魔搭、OpenAI、Gemini、Groq、OpenRouter、Ollama（OpenAI 兼容），以及 Anthropic 官方、OpenCode Zen / Go（Anthropic 格式）。默认模型选低延迟的 Flash/Lite 档；未连上服务商时下拉框显示预设里的模型清单。
-- **接口格式**：选预设会自动带上格式；选「自定义」时可手动选 `OpenAI 兼容`（`/chat/completions`，`Authorization: Bearer`）或 `Anthropic`（`/v1/messages`，`x-api-key` + `anthropic-version: 2023-06-01`，可用自定义请求头覆盖版本）。
-- AI 对话选「复用默认连接」时格式跟随默认连接；选「独立连接」时可在高级设置里单独选 `Anthropic（Messages）`。
+- **服务商**：与 Octop（mawanglin.octop）的预设一致，共 41 个，下拉框可搜索。包括阿里云百炼 / Coding Plan / Token Plan、火山方舟 / Coding Plan / Agent Plan、腾讯云 TokenHub / Coding Plan / Token Plan / 混元 Token Plan / HAI、智谱及其 Coding Plan、Kimi 及 Kimi Coding Plan、MiniMax、DeepSeek、硅基流动、小米 MiMo、讯飞星辰 Token Plan、魔搭、OpenCode Zen / Go（两种格式各一个）、OpenAI、Anthropic、Gemini、Groq、OpenRouter、Ollama。不含需 ChatGPT 登录的 OpenAI (ChatGPT) 和只做向量的预设。默认模型选低延迟的 Flash/Lite 档；未连上服务商时，模型下拉框显示预设里的模型清单。
+- **接口格式**（始终显示）：`OpenAI 兼容`（`/chat/completions`，`Authorization: Bearer`）或 `Anthropic`（`/v1/messages`，`x-api-key` + `anthropic-version: 2023-06-01`，可用自定义请求头覆盖版本）。选预设会自动带上格式；手动切换格式时，同系列有对应格式的预设（如 OpenCode）就切过去，否则转为「自定义」并保留地址，便于改成服务商的 Anthropic 入口。
+- **API 地址**（始终显示，可改）：地址与某个预设一致时自动识别为该预设。
+- 套餐类接入点（Coding / Agent / Token Plan）需单独开通，部分服务条款限定在编程或 Agent 工具中使用，请先确认。
+- AI 对话选「复用默认连接」时格式跟随默认连接；选「独立连接」时可单独选接口格式。
 - Anthropic 格式下口令分析、对话（含流式）、模型列表均可用；**联网搜索暂不支持**。
+- 预设由 `miot-service/scripts/gen-ai-presets.py` 从 Octop 导出的 JSON 生成，同步方法见脚本开头说明。
 
 ## 配置
 

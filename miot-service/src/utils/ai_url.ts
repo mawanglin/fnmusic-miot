@@ -16,8 +16,11 @@
 // 多数 OpenAI 兼容服务用 /v1；但部分厂商路径不同：火山方舟 /api/v3、智谱
 // /api/paas/v4、千帆 /v2 等。若只认 /v1，这些服务会被错拼成 `.../v3/v1` → 404。
 
-/** 已知 OpenAI 兼容版本段：/v1（标准）~ /v4（智谱等） */
-const KNOWN_VERSION_SEG = /\/(v1|v2|v3|v4)$/i;
+/**
+ * 已知版本段：/v1（标准）~ /v4（智谱等），以及 Gemini 的 OpenAI 兼容入口 /v1beta/openai。
+ * 不含版本段的地址（如 Anthropic 兼容的 https://opencode.ai/zen）按惯例补 /v1。
+ */
+const KNOWN_VERSION_SEG = /\/(?:v[1-4]|v1beta\/openai)$/i;
 
 /** 百炼官方端点；前后端共用，避免向其它兼容服务发送厂商参数。 */
 export function isDashScopeEndpoint(endpoint: string): boolean {

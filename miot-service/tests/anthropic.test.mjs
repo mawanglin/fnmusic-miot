@@ -95,3 +95,9 @@ test('对话连接：复用默认连接时格式跟随；独立连接用自己�
   assert.equal(m.validateChatConfig({ api_protocol: 'anthropic' }).api_protocol, 'anthropic');
   assert.throws(() => m.validateChatConfig({ api_protocol: 'nope' }), /api_protocol/);
 });
+
+test('地址归一：Gemini 的 /v1beta/openai 不再被误补 /v1', () => {
+  assert.equal(m.aiModelsUrl('https://generativelanguage.googleapis.com/v1beta/openai'), 'https://generativelanguage.googleapis.com/v1beta/openai/models');
+  assert.equal(m.aiAnthropicMessagesUrl('https://opencode.ai/zen/go'), 'https://opencode.ai/zen/go/v1/messages');
+  assert.equal(m.aiModelsUrl('https://api.lkeap.cloud.tencent.com/coding/v3'), 'https://api.lkeap.cloud.tencent.com/coding/v3/models');
+});
