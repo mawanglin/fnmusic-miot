@@ -1,4 +1,32 @@
 #!/bin/bash
-# Nothing extra after the container is removed; appcenter deletes the app dir.
+# 卸载后：按用户在卸载向导里的选择处理应用数据。
+#   fnmusic_keep_data=true（默认，向导变量缺失时也按保留）：数据留在 appdata，重装后沿用
+#   fnmusic_keep_data=false：彻底删除运行数据（小米账号登录、storage.json、令牌、日志）
+# 只会删除本应用自己的数据目录；飞牛音乐的任何数据都不碰。
 set -uo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${SELF_DIR}/_common"
+
+if [ "${fnmusic_keep_data:-true}" != "false" ]; then
+    echo "[fnmusic-miot] 卸载：已保留应用数据 ${MIOT_DATA_ROOT}" >> "${FNMUSIC_MIOT_DURABLE_LOG}" 2>/dev/null || true
+    exit 0
+fi
+
+# 安全检查：只允许删除形如 …/@appdata/fnmusic-miot/var 的目录，防止变量异常时误删。
+case "${MIOT_DATA_ROOT}" in
+    */@appdata/fnmusic-miot/var) ;;
+    *)
+        echo "[fnmusic-miot] 拒绝删除异常路径：${MIOT_DATA_ROOT}" >> "${FNMUSIC_MIOT_DURABLE_LOG}" 2>/dev/null || true
+        exit 0
+        ;;
+esac
+
+rm -rf -- "${MIOT_DATA_ROOT}" 2>/dev/null || true
+rm -f -- "${FNMUSIC_MIOT_LOG}" 2>/dev/null || true
+# 旧版卸载时会额外复制一份数据到 <卷>/fnmusic-miot-data，选择彻底删除时一并清掉。
+for d in /vol[0-9]*/fnmusic-miot-data; do
+    [ -d "${d}" ] && rm -rf -- "${d}" 2>/dev/null || true
+done
+echo "[fnmusic-miot] 卸载：已按选择彻底删除应用数据" >> "${FNMUSIC_MIOT_DURABLE_LOG}" 2>/dev/null || true
 exit 0

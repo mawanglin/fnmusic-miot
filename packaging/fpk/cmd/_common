@@ -345,6 +345,15 @@ fnmusic_miot_migrate_legacy_data() {
 
     [ -f "${dst}/token" ] && return 0
 
+    # 旧版卸载时留下的副本 <卷>/fnmusic-miot-data（token 等文件直接在目录下）。
+    for cand in /vol[0-9]*/fnmusic-miot-data; do
+        [ -f "${cand}/token" ] || continue
+        mkdir -p "${dst}" 2>/dev/null || true
+        cp -a "${cand}/." "${dst}/" 2>> "${FNMUSIC_MIOT_LOG}" || true
+        echo "[fnmusic-miot] 已从旧版副本恢复数据 ${cand} -> ${dst}" >> "${FNMUSIC_MIOT_LOG}"
+        return 0
+    done
+
     for cand in \
         "${TRIM_APPDEST:-}/repo/miot-data" \
         "/vol1/@appcenter/fnmusic-miot/repo/miot-data" \
