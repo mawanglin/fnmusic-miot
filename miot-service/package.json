@@ -10,7 +10,7 @@
     "build:all": "node build.mjs && npm run build:panel",
     "start": "node host/index.mjs",
     "check": "node --check host/index.mjs && node --check host/server.mjs",
-    "test": "node --test tests/gateway.test.mjs frontend/tests/setup_guide.test.mjs"
+    "test": "node --test tests/gateway.test.mjs frontend/tests/setup_guide.test.mjs frontend/tests/ai_presets.test.mjs"
   },
   "devDependencies": {
     "@songloft/plugin-sdk": "2.18.0",

@@ -26,7 +26,15 @@ const presetOptions = [
 ];
 const preset = computed(() => AI_PRESET_PROVIDERS.find(p => p.id === selectedPreset.value));
 const CUSTOM_MODEL = '__custom_model__';
-const modelOptions = computed(() => [...models.value.map(m => ({ value: m.id, label: m.ownedBy ? `${m.id} (${m.ownedBy})` : m.id, searchText: m.id })), { value: CUSTOM_MODEL, label: '自定义模型名…' }]);
+// 已连上服务商时用实时模型列表；未连接/获取失败时回退到预设（与 Octop 对齐）里的模型清单。
+const presetModels = computed(() => preset.value?.models || []);
+const modelOptions = computed(() => [
+  ...(models.value.length
+    ? models.value.map(m => ({ value: m.id, label: m.ownedBy ? `${m.id} (${m.ownedBy})` : m.id, searchText: m.id }))
+    : presetModels.value.map(m => ({ value: m.id, label: m.name === m.id ? m.id : `${m.name}（${m.id}）`, searchText: `${m.name} ${m.id}` }))),
+  { value: CUSTOM_MODEL, label: '自定义模型名…' },
+]);
+const inPresetModels = (id: string) => presetModels.value.some(m => m.id === id);
 const modelValue = computed(() => customModel.value ? CUSTOM_MODEL : state.config.ai_config.model || '');
 const signature = () => {
   let headers: unknown = customHeaders.value;
@@ -37,7 +45,7 @@ const connectionText = computed(() => ({ idle: '尚未检测连接', loading: '�
 
 function syncPreset() {
   const url = (state.config.ai_config.api_url || '').trim().replace(/\/+$/, '');
-  selectedPreset.value = AI_PRESET_PROVIDERS.find(p => p.baseUrl.replace(/\/+$/, '') === url)?.id || 'custom';
+  selectedPreset.value = AI_PRESET_PROVIDERS.find(p => [p.baseUrl, ...(p.aliases || [])].some(u => u.replace(/\/+$/, '') === url))?.id || 'custom';
 }
 async function saveConnection() {
   let headers: Record<string, string>;
@@ -51,7 +59,7 @@ async function applyPreset(id: string) {
   if (!next) return;
   state.config.ai_config.api_url = next.baseUrl;
   if (next.defaultModel) state.config.ai_config.model = next.defaultModel;
-  customModel.value = true;
+  customModel.value = false;
   try { await saveConnection(); } catch { }
 }
 function selectModel(value: string) {
@@ -77,7 +85,7 @@ async function refreshModels(silent = false) {
     if (!silent) notify(`已获取 ${models.value.length} 个模型`, 'success');
   } catch (error) {
     if (!current()) return;
-    models.value = []; modelError.value = messageOf(error); connectionState.value = 'error'; customModel.value = true;
+    models.value = []; modelError.value = messageOf(error); connectionState.value = 'error'; customModel.value = !inPresetModels(state.config.ai_config.model);
     if (!silent) notify(modelError.value, 'error');
   } finally { if (current()) loading.value = false; }
 }
@@ -101,7 +109,7 @@ async function testAnalysis() {
 }
 watch(signature, () => { requestVersion++; models.value = []; loading.value = false; modelError.value = ''; latency.value = null; connectionState.value = 'idle'; syncPreset(); });
 watch(() => JSON.stringify(state.config.ai_config.custom_headers || {}), () => { customHeaders.value = JSON.stringify(state.config.ai_config.custom_headers || {}, null, 2); });
-onMounted(() => { syncPreset(); customModel.value = !!state.config.ai_config.model; void refreshModels(true); });
+onMounted(() => { syncPreset(); customModel.value = !!state.config.ai_config.model && !inPresetModels(state.config.ai_config.model); void refreshModels(true); });
 onUnmounted(() => { alive = false; requestVersion++; });
 </script>
 
@@ -110,7 +118,7 @@ onUnmounted(() => { alive = false; requestVersion++; });
     <div class="form-body">
       <div class="field"><label class="field-label">服务商</label><SlSelect :model-value="selectedPreset" :options="presetOptions" aria-label="选择 AI 预设服务商" @update:model-value="applyPreset" /></div>
       <div v-if="selectedPreset === 'custom'" class="field"><label class="field-label">API 地址</label><SlInput v-model="state.config.ai_config.api_url" aria-label="默认 AI API 地址" placeholder="https://api.example.com/v1" @change="saveConnection().catch(() => {})" /></div>
-      <div class="field"><label class="field-label">API 密钥</label><SlInput v-model="state.config.ai_config.api_key" type="password" aria-label="默认 AI API 密钥" @change="saveConnection().catch(() => {})" /></div>
+      <div class="field"><label class="field-label">API 密钥</label><SlInput v-model="state.config.ai_config.api_key" type="password" aria-label="默认 AI API 密钥" :placeholder="preset?.keyPrefix ? `${preset.keyPrefix}…` : ''" @change="saveConnection().catch(() => {})" /></div>
       <AIHeadersField v-model="customHeaders" label="默认 AI 自定义请求头" @change="saveConnection().catch(() => {})" />
       <a v-if="preset" class="preset-key-link" :href="preset.apiKeyUrl" target="_blank" rel="noopener">前往 {{ preset.name }} 获取 API Key ↗</a>
       <div class="field">
