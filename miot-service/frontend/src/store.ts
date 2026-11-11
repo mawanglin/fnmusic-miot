@@ -127,6 +127,10 @@ export const state = reactive({
   conversationStatus: null as Record<string, unknown> | null,
   webhooks: [] as Webhook[],
   indexStatus: {} as IndexStatus,
+  // 账号/设备是否已加载过一次：首次进入的登录引导要等它为 true，避免加载中误报「未登录」。
+  accountsLoaded: false,
+  // 引导按钮跳转设置页后要滚动到的位置（由目标页面消费后清空）。
+  guideScroll: '',
   // 飞牛音乐连接状态（地址探测 / 设置页）。checked=false 表示还没测过，不要提前报错。
   fnmusic: { checked: false, reachable: true, base_url: '', mode: 'auto', source: '', reason: '' } as FnmusicStatus,
   memoryStats: {} as MemoryStats,
@@ -337,6 +341,7 @@ export async function loadAccountsAndDevices(): Promise<void> {
   ]);
   state.accounts = accounts || [];
   state.devices = devices || [];
+  state.accountsLoaded = true;
   ensureCurrentDevice();
 }
 

@@ -85,6 +85,15 @@ cd miot-service && npm install --no-audit --no-fund && npm run build:all
 
 `bundle/` 与 `static/` 为构建产物，已被 `.gitignore` 忽略。`miot-service/src/data/`（拼音表、节假日、口令表）取自 songloft-plugin-miot，**必须入库**：此前 `miot-service/.gitignore` 的 `data/` 把它误忽略，导致干净克隆无法编译。
 
+## 首次进入引导
+
+主界面顶部会根据状态提示下一步（判断逻辑在 `miot-service/frontend/src/setupGuide.ts`，有单测）：
+
+1. **还没有小米账号** →「第 1 步：登录小米账号」，点「去登录」跳到 设置 → 设备 并滚动到「添加账号」（扫码 / 账号密码 / 手动 Token）。
+2. **账号登录已失效** →「小米账号需要重新登录」。
+3. **已登录但没有启用的音箱** →「第 2 步：启用要控制的音箱」，区分"没找到音箱"（请确认已绑定到该账号）和"没勾选音箱"。
+4. 登录并启用了至少一台音箱后，提示自动消失。账号加载完成前不显示，避免误报。
+
 ## 飞牛音乐网关地址（自动探测，三层兜底）
 
 本应用经 fnOS 的 HTTP 网关访问飞牛音乐，网关端口因机器而异（常见 5666，可被改动）。端口不对会表现为「歌曲加载失败 fetch failed」，所以做了三层保护：

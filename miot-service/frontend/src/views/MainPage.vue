@@ -15,8 +15,21 @@ import { openSelect } from '../ui/selectState';
 import { navigation, openPage } from '../runtime';
 import { confirmAction, currentDevice, deviceName, lastPlayedSong, messageOf, playlistLabel, playSong, refreshAll, removeSongFromPlaylist, resumePlaylist, selectPlaylist, state, visibleSongs } from '../store';
 import type { SelectOption, Song } from '../types';
+import { computeSetupGuide } from '../setupGuide';
 
 const playlistOptions = computed<SelectOption[]>(() => state.playlists.map((p) => ({ value: String(p.id), label: playlistLabel(p), searchText: p.name })));
+// 首次进入引导（判断逻辑见 setupGuide.ts，有单测）。
+const setupGuide = computed(() => computeSetupGuide({
+  accountsLoaded: state.accountsLoaded,
+  deviceConnecting: state.deviceConnecting,
+  accounts: state.accounts,
+  devices: state.devices,
+}));
+function openSetupGuide(): void {
+  state.guideScroll = setupGuide.value?.stage === 'device' ? 'miot-device-list' : 'miot-add-account';
+  navigation.settingsCategory = 'device';
+  openPage('settings');
+}
 const fnmusicDown = computed(() => state.fnmusic.checked && !state.fnmusic.reachable);
 const noServerHint = computed(() => !state.config.server_host || state.config.server_host_status === 'loopback');
 // 有进度记录 + 有设备才给「继续播放」。歌曲列表未必已加载完（歌名靠它取），
@@ -388,6 +401,15 @@ onUnmounted(() => {
         <SlIcon name="cloud_off" :size="18" />
         <span>无法连接飞牛音乐（{{ state.fnmusic.base_url }}）：{{ state.fnmusic.reason || '地址或端口可能不对' }}。请在设置里填写飞牛网关地址。</span>
         <SlButton variant="text" label="去设置" @click="navigation.settingsCategory = 'library'; openPage('settings')" />
+      </div>
+    </div>
+
+    <!-- 首次进入引导：还没登录小米账号 / 没有启用音箱时，告诉用户下一步 -->
+    <div v-if="setupGuide" class="status-panel setup-guide">
+      <div class="inline-fields">
+        <SlIcon name="info" :size="18" />
+        <span><strong>{{ setupGuide.title }}</strong>　{{ setupGuide.text }}</span>
+        <SlButton variant="filled" :label="setupGuide.button" @click="openSetupGuide" />
       </div>
     </div>
 

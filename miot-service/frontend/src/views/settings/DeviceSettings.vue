@@ -50,6 +50,12 @@ const accountStatuses = computed(() => state.accounts);
 function isDeviceOnline(device: { online?: boolean; presence?: string }): boolean { return device.online === true || device.presence === 'online'; }
 
 onMounted(() => {
+  // 首次进入引导带来的定位：滚动到「添加账号」或设备列表，并清掉标记。
+  if (state.guideScroll) {
+    const target = state.guideScroll;
+    state.guideScroll = '';
+    setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  }
   const suggested = Array.isArray(state.config.suggested_addresses) ? state.config.suggested_addresses : [];
   serverChoice.value = suggested.includes(state.config.server_host) ? state.config.server_host : (state.config.server_host ? '__custom__' : '');
   customHost.value = state.config.server_host;
@@ -232,7 +238,7 @@ async function toggleMusicApi(hardware: string, enabled: boolean): Promise<void>
     </div>
   </SectionCard>
 
-  <SectionCard title="添加账号" icon="person_add" description="支持扫码、账号密码和手动 Token 三种登录方式。">
+  <SectionCard id="miot-add-account" title="添加账号" icon="person_add" description="支持扫码、账号密码和手动 Token 三种登录方式。">
     <div class="tab-strip"><button :class="{ active: authTab === 'qrcode' }" @click="authTab = 'qrcode'">扫码登录</button><button :class="{ active: authTab === 'password' }" @click="authTab = 'password'">账号密码</button><button :class="{ active: authTab === 'token' }" @click="authTab = 'token'">手动 Token</button></div>
     <div class="form-body">
       <template v-if="authTab === 'qrcode'"><p class="field-help">使用米家 App 扫描二维码，扫码成功后会自动创建账号。</p><SlButton variant="filled" block label="获取二维码" icon="qr_code_2" :disabled="qrBusy" @click="startQr" /><div v-if="qrUrl" class="qr-box"><img :src="qrUrl" alt="登录二维码" /><p>{{ qrStatus }}</p></div><p v-else-if="qrStatus" class="field-help">{{ qrStatus }}</p></template>
@@ -245,7 +251,7 @@ async function toggleMusicApi(hardware: string, enabled: boolean): Promise<void>
     <div class="form-body"><div v-if="!accountStatuses.length" class="empty-state">暂无账号，请先添加</div><div v-for="account in accountStatuses" :key="account.id" class="list-item"><div class="list-item-copy"><strong class="list-item-title">{{ account.account_name || account.account || account.id }}</strong><span class="list-item-subtitle">{{ account.logged_in && account.is_valid !== false ? '已登录' : '需要重新登录' }}<span v-if="account.user_id"> · User ID {{ account.user_id }}</span></span></div><span class="chip" :class="account.logged_in && account.is_valid !== false ? 'chip-success' : 'chip-warning'">{{ account.logged_in && account.is_valid !== false ? '正常' : '待处理' }}</span><SlButton variant="icon" icon="refresh" title="重新登录" @click="relogin(account.id)" /><SlButton variant="icon" icon="delete" title="删除账号" @click="removeAccount(account.id)" /></div></div>
   </SectionCard>
 
-  <SectionCard title="设备管理" icon="speaker_group" description="新发现的设备默认全部勾选。可取消勾选不需要管理的设备，已有选择会保留；仅勾选的设备参与语音监听，并显示在播放选择器、分组和定时任务中。">
+  <SectionCard id="miot-device-list" title="设备管理" icon="speaker_group" description="新发现的设备默认全部勾选。可取消勾选不需要管理的设备，已有选择会保留；仅勾选的设备参与语音监听，并显示在播放选择器、分组和定时任务中。">
     <div class="form-body"><div v-if="!state.devices.length" class="empty-state">暂无设备，请先登录账号并刷新。</div><div v-for="account in state.devices" :key="account.account_id" class="device-account"><h3 class="card-title">{{ account.account_name || account.account_id }}</h3><div v-for="device in account.devices" :key="deviceId(device)" class="device-check-row"><SlCheckbox :model-value="!!device.managed" :aria-label="`管理 ${deviceName(device)}`" @update:model-value="setManaged(account.account_id, deviceId(device), $event)" /><div class="device-check-copy"><strong>{{ deviceName(device) }}</strong><small>{{ device.model || device.hardware || '未知型号' }} · {{ isDeviceOnline(device) ? '在线' : '离线' }}</small></div><span class="chip" :class="isDeviceOnline(device) ? 'chip-success' : 'chip-warning'">{{ isDeviceOnline(device) ? '在线' : '离线' }}</span></div></div></div>
   </SectionCard>
 
