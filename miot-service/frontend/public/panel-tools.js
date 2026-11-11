@@ -470,7 +470,7 @@
       .then(function (d) {
         var t = firstDevice(d && d.data);
         if (!t.device) throw new Error('没有可用的智能音箱');
-        var id = t.device.deviceID || t.device.deviceId;
+        var id = deviceIdOf(t.device);
         return fetch(apiUrl('/mina/play-url'), {
           method: 'POST',
           credentials: 'same-origin',
@@ -733,9 +733,33 @@
 
   /* a: 音箱连接状态 —— 红=断开 / 蓝=待机 / 绿=播放中 */
   var lastChatClear = 0;
+  /* 目标音箱：优先用面板里当前选中的设备（Vue 发布在 window.__miotTarget），
+     其次用后端记录的「上次选中」（last_selected_device_id），最后才退回第一台已管理设备。
+     原来只看「第一台已管理设备」，右上角搜索点歌会投到别的音箱上。 */
+  // 与 Vue 的 deviceId() 同序，保证两边取到同一个 ID。
+  function deviceIdOf(d) { return d ? String(d.device_id || d.deviceID || d.deviceId || d.id || '') : ''; }
   function firstDevice(list) {
     var group, devs, i, j, acc = '', dev = null;
-    for (i = 0; i < (list || []).length; i++) {
+    var want = window.__miotTarget || {};
+    list = list || [];
+    if (want.account && want.device) {
+      for (i = 0; i < list.length; i++) {
+        if (list[i].account_id !== want.account) continue;
+        devs = list[i].devices || [];
+        for (j = 0; j < devs.length; j++) {
+          if (deviceIdOf(devs[j]) === want.device) return { account: want.account, device: devs[j] };
+        }
+      }
+    }
+    for (i = 0; i < list.length; i++) {
+      devs = list[i].devices || [];
+      for (j = 0; j < devs.length; j++) {
+        if (list[i].last_selected_device_id && deviceIdOf(devs[j]) === list[i].last_selected_device_id) {
+          return { account: list[i].account_id, device: devs[j] };
+        }
+      }
+    }
+    for (i = 0; i < list.length; i++) {
       group = list[i];
       devs = group.devices || [];
       for (j = 0; j < devs.length; j++) {
@@ -746,6 +770,8 @@
     }
     return { account: acc, device: dev };
   }
+  // 面板里切换设备后，状态灯立刻跟着换，不必等 30 秒轮询。
+  window.addEventListener('miot:target', function () { try { refreshSpeaker(); } catch (e) { /* ignore */ } });
 
   function refreshSpeaker() {
     return fetchJson(apiUrl('/mina/devices'))
@@ -756,7 +782,7 @@
           tip(speakerDot, '智能音箱·断开');
           return t;
         }
-        var id = t.device.deviceID || t.device.deviceId;
+        var id = deviceIdOf(t.device);
         return fetchJson(apiUrl('/player/status?account_id=' + encodeURIComponent(t.account)
           + '&device_id=' + encodeURIComponent(id)))
           .then(function (p) {
@@ -815,7 +841,7 @@
       .then(function (d) {
         var t = firstDevice(d && d.data);
         if (!t.device) return null;
-        var id = t.device.deviceID || t.device.deviceId;
+        var id = deviceIdOf(t.device);
         return fetch(apiUrl('/chat/cancel'), {
           method: 'POST',
           credentials: 'same-origin',

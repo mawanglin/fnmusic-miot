@@ -1,5 +1,5 @@
 import type { ChatStatus } from '../../src/chat/types';
-import { computed, reactive } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { del, get, messageOf, pluginWebSocketUrl, post, query } from './api';
 import type {
   Account,
@@ -166,6 +166,14 @@ export function deviceName(device: Device): string {
 export function playlistLabel(playlist: Playlist): string {
   return `${playlist.name} (${playlist.song_count ?? 0})`;
 }
+
+// 把当前选中的设备发布给页面上的独立脚本（public/panel-tools.js：右上角搜索点歌、
+// 音箱状态灯）。它不在 Vue 里，原先只会挑「第一台已管理设备」，导致点歌投到别的音箱。
+watch(() => [state.currentAccountId, state.currentDeviceId] as const, ([account, device]) => {
+  if (typeof window === 'undefined') return;
+  (window as unknown as { __miotTarget?: { account: string; device: string } }).__miotTarget = { account, device };
+  try { window.dispatchEvent(new CustomEvent('miot:target', { detail: { account, device } })); } catch { /* 旧浏览器 */ }
+}, { immediate: true });
 
 export const currentDevice = computed(() => {
   const account = state.devices.find((item) => item.account_id === state.currentAccountId);
