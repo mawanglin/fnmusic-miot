@@ -59,6 +59,8 @@ export interface MiotConfig {
   hourly_chime_resume_enabled: boolean;
   default_cover_id: string | number;
   touchscreen_lyrics_enabled: boolean;
+  /** 播放栏 / 播放页频谱动画，默认关闭 */
+  spectrum_enabled: boolean;
   ai_config: AIConfig;
 }
 

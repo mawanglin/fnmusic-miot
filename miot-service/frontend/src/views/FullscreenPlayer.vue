@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue';
+import SpectrumCanvas from '../ui/SpectrumCanvas.vue';
 import { useSongCover } from '../covers';
 import { extractCoverPalette, paletteFromMetadata, paletteStyle } from '../playerPalette';
 import PlayerModePopup from './PlayerModePopup.vue';
@@ -346,6 +347,7 @@ watch(() => navigation.playerPage, showMobilePage);
       <div class="fullscreen-ambient-tint"></div>
       <div class="fullscreen-ambient-glow"></div>
       <div class="fullscreen-theme-gradient"></div>
+      <SpectrumCanvas variant="stage" />
     </div>
     <header class="fullscreen-topbar">
       <SlButton variant="icon" icon="keyboard_arrow_down" class="fullscreen-collapse-button" title="收起播放器" @click="close" />

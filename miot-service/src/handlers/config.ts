@@ -125,6 +125,7 @@ export function registerConfigHandlers(
           ai_config: aiConfig,
           default_cover_id: config.default_cover_id,
           touchscreen_lyrics_enabled: !!config.touchscreen_lyrics_enabled,
+          spectrum_enabled: !!config.spectrum_enabled,
         },
       });
     } catch (e: any) {
@@ -263,6 +264,10 @@ export function registerConfigHandlers(
       // 更新 indicator_light_enabled
       if (body.indicator_light_enabled !== undefined) {
         config.indicator_light_enabled = !!body.indicator_light_enabled;
+      }
+
+      if (body.spectrum_enabled !== undefined) {
+        config.spectrum_enabled = !!body.spectrum_enabled;
       }
 
       // 更新 touchscreen_lyrics_enabled

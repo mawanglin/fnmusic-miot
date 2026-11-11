@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useSongCover } from '../covers';
+import SpectrumCanvas from '../ui/SpectrumCanvas.vue';
 import { usePlayerMaterial } from '../playerMaterial';
 import { notifyHostFavorite, openPage } from '../runtime';
 import { currentDevice, notify, playerCommand, seekPlayer, setPlayMode, setVolume, state } from '../store';
@@ -326,6 +327,7 @@ async function cancelSleepTimer(): Promise<void> {
     title="打开全屏播放器"
     @click="onBarSurfaceClick"
   >
+    <SpectrumCanvas variant="bar" />
     <div
       class="player-bar-progress"
       role="slider"

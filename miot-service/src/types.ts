@@ -182,6 +182,7 @@ export interface PluginConfig {
   music_api_model_disabled?: string[]; // 显式禁用 Music API 的型号（覆盖内置默认清单）
   indicator_light_enabled?: boolean;
   default_cover_id?: string;
+  spectrum_enabled?: boolean;   // 播放栏 / 播放页频谱动画（NAS 预分析音频），默认关闭
   touchscreen_lyrics_enabled?: boolean; // 触屏歌词：逐首匹配云端曲库以在触屏音箱显示歌词
   interrupt_tts_hint_enabled: boolean;
   interrupt_tts_hint_text: string;

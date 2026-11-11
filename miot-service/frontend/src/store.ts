@@ -62,6 +62,7 @@ const defaultConfig: MiotConfig = {
   hourly_chime_resume_enabled: false,
   default_cover_id: '',
   touchscreen_lyrics_enabled: false,
+  spectrum_enabled: false,
   ai_config: {},
 };
 

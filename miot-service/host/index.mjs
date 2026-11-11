@@ -19,6 +19,7 @@ import { createFnMusicClient } from '../adapter/fnmusic.mjs';
 import { createMusicAdapter } from '../adapter/songs.mjs';
 import { createStreamHandler, createCoverHandler, createLyricHandler } from '../adapter/stream.mjs';
 import { createCompatHandler } from '../adapter/compat.mjs';
+import { createSpectrumHandler } from '../adapter/spectrum.mjs';
 import { createGatewaySettings, createGatewayManager } from './gateway.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -171,6 +172,7 @@ installSongloft({ cfg, storage, music, log });
 const streamHandler = createStreamHandler({ fn, music, cfg, log });
 const coverHandler = createCoverHandler({ fn, music, log });
 const lyricHandler = createLyricHandler({ fn, music, log });
+const spectrumHandler = createSpectrumHandler({ fn, music, cfg, log });
 const compat = createCompatHandler({ fn, music, cfg, log, storage });
 // 地址变了（自动恢复 / 设置页保存）：令牌与曲库索引都要按新地址重来。
 onGatewayChanged = () => { void compat.refreshIndex(); };
@@ -187,7 +189,7 @@ if (typeof globalThis.onInit !== 'function') {
 }
 await globalThis.onInit();
 
-const server = await startServer({ cfg, streamHandler, coverHandler, lyricHandler, compat, gateway, log });
+const server = await startServer({ cfg, streamHandler, coverHandler, lyricHandler, spectrumHandler, compat, gateway, log });
 
 // 启动即校验一次飞牛地址；连不上且是自动模式时，这里就会触发探测与切换。
 void gateway.status({ fresh: true }).then((s) => {

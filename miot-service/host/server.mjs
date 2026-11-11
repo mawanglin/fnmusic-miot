@@ -191,7 +191,7 @@ function mergePlayParams(searchParams, opts) {
 
 const ACCESS_LOG = process.env.FNMUSIC_MIOT_ACCESS_LOG !== '0';
 
-export async function startServer({ cfg, streamHandler, coverHandler, lyricHandler, compat, gateway, log }) {
+export async function startServer({ cfg, streamHandler, coverHandler, lyricHandler, spectrumHandler, compat, gateway, log }) {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     let pathname = url.pathname;
@@ -235,6 +235,17 @@ export async function startServer({ cfg, streamHandler, coverHandler, lyricHandl
           // 地址不合法 / 连不上：400，message 是可直接展示给用户的中文说明。
           return json(400, { error: String(err?.message || err), code: err?.code || 'BAD_REQUEST' });
         }
+      }
+
+      // 1c) 频谱数据（设置里开启「播放频谱动画」后，播放栏 / 播放页按需请求）。
+      //     首次请求某首歌时在 NAS 上解码分析，之后读缓存；必须带令牌。
+      const spectrumMatch = pathname.match(/^\/spectrum\/(\d+)$/);
+      if (spectrumMatch && spectrumHandler) {
+        if (!authorized(req, url, cfg)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end('{"error":"unauthorized"}'); return; }
+        const result = await spectrumHandler({ id: spectrumMatch[1] });
+        res.writeHead(result.statusCode, { 'Content-Type': 'application/json', 'Cache-Control': result.statusCode === 200 ? 'private, max-age=86400' : 'no-store' });
+        res.end(JSON.stringify(result.body));
+        return;
       }
 
       // 2) Audio stream endpoints (the speaker only fetches a bare HTTP URL).
