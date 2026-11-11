@@ -92,7 +92,7 @@ async function backToAuto() {
   >
     <div class="form-body">
       <div class="inline-fields">
-        <SlStatusChip :label="chip.label" :tone="chip.tone" :icon="status.reachable ? 'check_circle' : 'cloud_off'" />
+        <SlStatusChip :label="chip.label" :tone="chip.tone" :icon="status.reachable ? 'check' : 'cloud_off'" />
         <span>当前地址：<strong>{{ status.base_url || '—' }}</strong>
           <small v-if="status.source">（{{ status.mode === 'manual' ? '手动设置' : status.source }}）</small></span>
       </div>
@@ -104,7 +104,7 @@ async function backToAuto() {
       </div>
       <div class="field-actions">
         <SlButton variant="tonal" icon="search" label="自动探测" :disabled="busy !== ''" @click="detect" />
-        <SlButton variant="tonal" icon="check_circle" label="测试连接" :disabled="busy !== '' || !url.trim()" @click="test" />
+        <SlButton variant="tonal" icon="check" label="测试连接" :disabled="busy !== '' || !url.trim()" @click="test" />
         <SlButton v-if="status.mode === 'manual'" variant="text" icon="refresh" label="恢复自动探测" :disabled="busy !== ''" @click="backToAuto" />
       </div>
       <p v-if="result" class="field-hint" :style="{ color: result.ok ? 'var(--md-primary)' : 'var(--md-error)' }">{{ result.text }}</p>

@@ -29,6 +29,9 @@ function resize() {
   el.width = Math.max(1, Math.round(width * dpr));
   el.height = Math.max(1, Math.round(height * dpr));
   draw();
+  // 开关刚打开时画布从隐藏（宽 0）变为显示：此前那一帧什么都画不了、循环已停，
+  // 拿到尺寸后要重新启动，否则要等下一次进度推送才会动起来。
+  kick();
 }
 
 function draw() {

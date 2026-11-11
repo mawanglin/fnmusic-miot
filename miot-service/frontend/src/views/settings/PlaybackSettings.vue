@@ -75,7 +75,7 @@ function setSwitch(key: keyof typeof state.config, value: boolean) { void saveCo
     </div>
   </SectionCard>
 
-  <SectionCard title="界面效果" icon="graphic_eq" description="只影响本页面的显示，不影响音箱播放。">
+  <SectionCard title="界面效果" icon="equalizer" description="只影响本页面的显示，不影响音箱播放。">
     <SettingRow title="播放频谱动画" subtitle="在底部播放栏和播放页显示随音乐跳动的频谱"><SlSwitch aria-label="播放频谱动画" :model-value="!!state.config.spectrum_enabled" @update:model-value="setSwitch('spectrum_enabled', $event)" /></SettingRow>
     <div v-if="state.config.spectrum_enabled" class="dependency-hint"><SlIcon name="info" :size="18" /><span>声音在音箱上播放，网页拿不到实际音频：每首歌第一次播放时，NAS 会额外解码分析一遍（通常几秒，之后读缓存），再按播放进度同步显示，和实际声音可能有零点几秒的偏差。</span></div>
   </SectionCard>

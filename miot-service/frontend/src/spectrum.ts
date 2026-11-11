@@ -4,7 +4,7 @@
 // 这里按「服务端推送的播放进度 + 本地计时」估算当前时间，取对应帧给画布绘制。
 // 播放栏和播放页共用同一份数据与时钟，切歌只请求一次。
 
-import { reactive, watch } from 'vue';
+import { effectScope, reactive, watch } from 'vue';
 import { get } from './api';
 import { state } from './store';
 
@@ -49,7 +49,8 @@ function reanchor() {
   anchorPos = Number(state.player.position || 0);
   anchorAt = performance.now();
 }
-watch(() => [state.player.position, state.player.is_playing, state.player.current_song?.id], reanchor);
+// immediate：页面打开后进度若一直没变，也要有正确的计时起点（否则起点为 0，外推时间偏差很大）。
+watch(() => [state.player.position, state.player.is_playing, state.player.current_song?.id], reanchor, { immediate: true });
 
 /** 当前估计的播放时间（秒）。 */
 export function currentTime(): number {
@@ -79,11 +80,15 @@ async function load(id: number) {
 }
 
 let started = false;
-/** 由画布组件调用；只在开关打开时请求数据。 */
+/**
+ * 由画布组件调用；只在开关打开时请求数据。
+ * 监听器放在独立的 effectScope 里：若建在组件 setup 中，播放栏一卸载（如进入设置页）
+ * 监听就被 Vue 停掉，之后打开开关、切歌都不再加载数据，要刷新页面才生效。
+ */
 export function useSpectrumSource() {
   if (started) return spectrum;
   started = true;
-  watch(() => [!!state.config.spectrum_enabled, Number(state.player.current_song?.id || 0)] as const, async ([enabled, id]) => {
+  effectScope(true).run(() => watch(() => [!!state.config.spectrum_enabled, Number(state.player.current_song?.id || 0)] as const, async ([enabled, id]) => {
     spectrum.songId = id || null;
     spectrum.data = enabled && id ? cache.get(id) || null : null;
     if (!enabled || !id || spectrum.data) return;
@@ -91,6 +96,6 @@ export function useSpectrumSource() {
     await load(id);
     if (spectrum.songId === id && state.config.spectrum_enabled) spectrum.data = cache.get(id) || null;
     spectrum.loading = false;
-  }, { immediate: true });
+  }, { immediate: true }));
   return spectrum;
 }
