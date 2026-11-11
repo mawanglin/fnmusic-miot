@@ -12,6 +12,7 @@ import { VoiceEngine } from '../voicecmd/engine';
 import { aiModelsUrl, maskUrl } from '../utils/ai_url';
 import { requestAI } from '../utils/ai_request';
 import { aiRequestHeaders, isAnthropicConnection } from '../utils/ai_headers';
+import { isListUnsupported, probeChat } from '../ai/probe';
 
 /** 解析请求体（兼容 Uint8Array 和 string） */
 function parseBody(req: HTTPRequest): any {
@@ -178,13 +179,24 @@ export function registerVoiceCommandHandlers(
       if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('forbidden')) {
         return jsonResponse({ success: false, error: 'API Key 不正确或无权限' });
       }
-      if (msg.includes('404') || msg.includes('not found')) {
-        // 带上实际请求地址（脱敏），便于判断是「地址填错/前缀重复」还是「服务不提供该端点」
-        const hint = modelsUrl ? `（实际请求：${maskUrl(modelsUrl)}）` : '';
-        return jsonResponse({
-          success: false,
-          error: `未找到模型列表端点${hint}：请确认 API 地址是否正确、该服务是否提供 /v1/models；若不支持该端点，可直接在「模型」处手动填写模型名`,
-        });
+      if (isListUnsupported(msg)) {
+        // 不少套餐接入点（火山方舟 Coding / Agent Plan 等）不提供 /models：改用一次极小的对话请求验证连接，
+        // 通过就视为已连接，前端回退到预设模型清单。
+        // 设置页打开时的静默刷新不发探测请求（避免每次打开都消耗调用），只有点「检测连接」才探测。
+        if (parseQuery(req.query).probe === '0')
+          return jsonResponse({ success: true, data: { models: [], modelCount: 0, listUnsupported: true, probed: false } });
+        const probeConfig = await configManager.getAIConfig();
+        if (!probeConfig.model)
+          return jsonResponse({ success: false, error: '该服务不提供模型列表，请先在下拉框选择预设模型或手动填写模型名，再点「检测连接」' });
+        try {
+          await probeChat(probeConfig);
+          return jsonResponse({ success: true, data: { models: [], modelCount: 0, listUnsupported: true, probed: true } });
+        } catch (probeErr: any) {
+          const detail = String(probeErr?.message || probeErr);
+          const hint = modelsUrl ? `（模型列表 ${maskUrl(modelsUrl)} 不存在）` : '';
+          if (/\((401|403)\)/.test(detail)) return jsonResponse({ success: false, error: `API Key 不正确或无权限${hint}` });
+          return jsonResponse({ success: false, error: `该服务不提供模型列表${hint}，用当前模型发送测试请求也失败：${detail.slice(0, 200)}` });
+        }
       }
       return jsonResponse({ success: false, error: '获取模型列表失败：' + msg.slice(0, 200) });
     }

@@ -45,7 +45,13 @@ const signature = () => {
   try { headers = parseAIHeaders(customHeaders.value); } catch { }
   return JSON.stringify([state.config.ai_config.api_url, state.config.ai_config.api_key, state.config.ai_config.api_format, headers]);
 };
-const connectionText = computed(() => ({ idle: '尚未检测连接', loading: '检测连接中…', ok: `已连接 · ${latency.value} ms`, error: `连接失败：${modelError.value}` })[connectionState.value]);
+// listMode：服务不提供 /models 时，'probed' 表示已用一次极小的对话请求验证过连接，'unverified' 表示尚未验证。
+const listMode = ref<'list' | 'probed' | 'unverified'>('list');
+const connectionText = computed(() => {
+  if (connectionState.value === 'ok' && listMode.value === 'probed') return `已连接 · ${latency.value} ms · 该服务不提供模型列表，使用预设清单`;
+  if (connectionState.value === 'ok' && listMode.value === 'unverified') return '该服务不提供模型列表，已使用预设清单；点「检测连接」验证密钥与模型';
+  return ({ idle: '尚未检测连接', loading: '检测连接中…', ok: `已连接 · ${latency.value} ms`, error: `连接失败：${modelError.value}` })[connectionState.value];
+});
 
 // 地址 + 格式都一致才算该预设；同一地址有多个预设时（如腾讯 Token Plan / 混元 Token Plan）优先上次所选。
 function syncPreset() {
@@ -103,15 +109,19 @@ async function refreshModels(silent = false) {
   try {
     if (!silent) await saveConnection();
     if (!current()) return;
-    const result = await get<{ models: Array<{ id: string; ownedBy?: string }> }>('/voice-commands/models');
+    const result = await get<{ models: Array<{ id: string; ownedBy?: string }>; listUnsupported?: boolean; probed?: boolean }>(silent ? '/voice-commands/models?probe=0' : '/voice-commands/models');
     if (!current()) return;
     models.value = Array.isArray(result.models) ? result.models : [];
     latency.value = Date.now() - started; connectionState.value = 'ok';
-    customModel.value = !!state.config.ai_config.model && !models.value.some(m => m.id === state.config.ai_config.model);
-    if (!silent) notify(`已获取 ${models.value.length} 个模型`, 'success');
+    listMode.value = result.listUnsupported ? (result.probed ? 'probed' : 'unverified') : 'list';
+    // 拿不到在线列表时用预设清单判断当前模型是否需要手填。
+    customModel.value = !!state.config.ai_config.model && (result.listUnsupported
+      ? !inPresetModels(state.config.ai_config.model)
+      : !models.value.some(m => m.id === state.config.ai_config.model));
+    if (!silent) notify(result.listUnsupported ? '连接正常；该服务不提供模型列表，已使用预设模型清单' : `已获取 ${models.value.length} 个模型`, 'success');
   } catch (error) {
     if (!current()) return;
-    models.value = []; modelError.value = messageOf(error); connectionState.value = 'error'; customModel.value = !inPresetModels(state.config.ai_config.model);
+    models.value = []; listMode.value = 'list'; modelError.value = messageOf(error); connectionState.value = 'error'; customModel.value = !inPresetModels(state.config.ai_config.model);
     if (!silent) notify(modelError.value, 'error');
   } finally { if (current()) loading.value = false; }
 }
@@ -133,7 +143,7 @@ async function testAnalysis() {
   } catch (error) { if (current()) testResult.value = messageOf(error); }
   finally { if (alive) testBusy.value = false; }
 }
-watch(signature, () => { requestVersion++; models.value = []; loading.value = false; modelError.value = ''; latency.value = null; connectionState.value = 'idle'; syncPreset(); });
+watch(signature, () => { requestVersion++; models.value = []; listMode.value = 'list'; loading.value = false; modelError.value = ''; latency.value = null; connectionState.value = 'idle'; syncPreset(); });
 watch(() => JSON.stringify(state.config.ai_config.custom_headers || {}), () => { customHeaders.value = JSON.stringify(state.config.ai_config.custom_headers || {}, null, 2); });
 onMounted(() => { syncPreset(); customModel.value = !!state.config.ai_config.model && !inPresetModels(state.config.ai_config.model); void refreshModels(true); });
 onUnmounted(() => { alive = false; requestVersion++; });

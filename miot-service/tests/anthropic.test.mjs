@@ -15,6 +15,7 @@ export { createAIRequest } from '../src/ai/protocol';
 export { aiRequestHeaders, isAnthropicConnection, validateAIHeaders } from '../src/utils/ai_headers';
 export { aiModelsUrl, aiAnthropicMessagesUrl } from '../src/utils/ai_url';
 export { chatConnection, validateChatConfig, DEFAULT_CHAT_CONFIG } from '../src/chat/types';
+export { probeRequest, isListUnsupported } from '../src/ai/probe';
 `);
 const m = await load(entry);
 fs.rmSync(entry);
@@ -100,4 +101,16 @@ test('地址归一：Gemini 的 /v1beta/openai 不再被误补 /v1', () => {
   assert.equal(m.aiModelsUrl('https://generativelanguage.googleapis.com/v1beta/openai'), 'https://generativelanguage.googleapis.com/v1beta/openai/models');
   assert.equal(m.aiAnthropicMessagesUrl('https://opencode.ai/zen/go'), 'https://opencode.ai/zen/go/v1/messages');
   assert.equal(m.aiModelsUrl('https://api.lkeap.cloud.tencent.com/coding/v3'), 'https://api.lkeap.cloud.tencent.com/coding/v3/models');
+});
+
+test('无模型列表时的探测请求：按格式构造极小对话，并只把 404/405 视为不支持列表', () => {
+  const o = m.probeRequest({ api_url: 'https://ark.cn-beijing.volces.com/api/plan/v3', api_key: 'k', model: 'doubao-seed-2.1-lite', timeout: 6 });
+  assert.equal(o.endpoint, 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions');
+  assert.equal(o.body.max_tokens, 8);
+  const a = m.probeRequest({ api_url: 'https://api.anthropic.com/v1', api_key: 'k', model: 'claude-haiku-5-5', timeout: 6, api_format: 'anthropic' });
+  assert.equal(a.endpoint, 'https://api.anthropic.com/v1/messages');
+  assert.equal(m.isListUnsupported('模型列表请求失败 (404): {"error":"not found"}'), true);
+  assert.equal(m.isListUnsupported('模型列表请求失败 (405): '), true);
+  assert.equal(m.isListUnsupported('模型列表请求失败 (401): bad key'), false);
+  assert.equal(m.isListUnsupported('模型列表请求失败 (500): oops'), false);
 });

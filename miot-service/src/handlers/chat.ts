@@ -65,7 +65,10 @@ export function registerChatHandlers(router: Router, config: ConfigManager, chat
     const connection = chatConnection(await config.getChatConfig(), await config.getAIConfig());
     if (!connection.api_url || !connection.api_key)
       throw new Error('AI 对话连接配置不完整');
+    let listUnsupported = false;
     const models = await requestAI(aiModelsUrl(connection.api_url, isAnthropicConnection(connection)), { method: 'GET', headers: aiRequestHeaders(connection) }, connection.timeout, { kind: 'models' }, async (response) => {
+      // 套餐接入点（火山方舟 Coding / Agent Plan 等）不提供 /models：返回空列表，由用户手填模型并用「测试连接」验证。
+      if (response.status === 404 || response.status === 405) { listUnsupported = true; return []; }
       if (!response.ok)
         throw new Error(`模型列表请求失败：${response.status}`);
       const result = await response.json();
@@ -77,7 +80,7 @@ export function registerChatHandlers(router: Router, config: ConfigManager, chat
         id: string;
       }) => ({ id: m.id }));
     });
-    return jsonResponse({ models });
+    return jsonResponse({ models, list_unsupported: listUnsupported });
   }));
   router.post('/chat/messages', wrap(async (req) => {
     const body = chatBody(req), t = await target(req, body);

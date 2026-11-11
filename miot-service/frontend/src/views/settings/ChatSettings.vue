@@ -173,7 +173,7 @@ const safeAction = (run: () => Promise<void>) => { if (alive) void action(run); 
       </template>
       <p v-if="config.connection === 'analysis'">默认模型：{{ state.config.ai_config.model || '尚未配置' }}（{{ state.config.ai_config.api_format === 'anthropic' ? 'Anthropic 格式' : 'OpenAI 兼容格式' }}）。同时复用默认连接的自定义请求头。启用对话不需要开启口令分析。</p>
       <label class="chat-field">问答模型<SlInput v-model="config.model" aria-label="问答模型" placeholder="留空则使用默认模型" /></label>
-      <SlButton v-if="config.connection === 'independent'" label="保存并获取模型" variant="outlined" :disabled="busy || !loaded" @click="safeAction(async () => { await save(); models = (await get<{ models: Array<{ id: string }> }>('/chat/models')).models; })" />
+      <SlButton v-if="config.connection === 'independent'" label="保存并获取模型" variant="outlined" :disabled="busy || !loaded" @click="safeAction(async () => { await save(); const r = await get<{ models: Array<{ id: string }>; list_unsupported?: boolean }>('/chat/models'); models = r.models; if (r.list_unsupported) notify('该服务不提供模型列表，请在「问答模型」手动填写模型名，再点「测试连接」验证', 'info'); })" />
       <SlSelect :disabled="busy || !loaded" v-if="models.length" v-model="config.model" :options="models.map(m => ({ value: m.id, label: m.id }))" aria-label="可用问答模型" />
       <SettingRow title="联网搜索" subtitle="回答实时问题时，允许 AI 搜索资料。可能产生额外费用。">
         <SlSwitch :model-value="config.web_search_enabled" aria-label="联网搜索" @update:model-value="setWebSearch($event)" />
