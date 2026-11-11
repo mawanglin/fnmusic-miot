@@ -681,6 +681,11 @@ export async function refreshPlayerStatus(): Promise<void> {
   }
 }
 
+// 页面上的独立脚本（右上角搜索点歌）换了歌后通知这里，立即刷新播放状态，不等推送。
+if (typeof window !== 'undefined') {
+  window.addEventListener('miot:player-changed', () => { void refreshPlayerStatus(); });
+}
+
 let volumeSetAt = 0;
 const VOLUME_GRACE_MS = 3000;
 

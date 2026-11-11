@@ -463,7 +463,7 @@
     panel.innerHTML = html.join('');
   }
   function playSearchSong(s, row) {
-    if (!s || !s.play_url || row.getAttribute('data-pt-busy')) return;
+    if (!s || !s.id || row.getAttribute('data-pt-busy')) return;
     row.setAttribute('data-pt-busy', '1');
     row.style.opacity = '.55';
     fetchJson(apiUrl('/mina/devices'))
@@ -471,11 +471,13 @@
         var t = firstDevice(d && d.data);
         if (!t.device) throw new Error('没有可用的智能音箱');
         var id = deviceIdOf(t.device);
-        return fetch(apiUrl('/mina/play-url'), {
+        // 走播放器（/player/play-song）而不是把地址直接丢给音箱（/mina/play-url）：
+        // 否则播放栏、播放页的封面 / 歌名 / 歌词还是上一首。
+        return fetch(apiUrl('/player/play-song'), {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: t.account, device_id: id, url: s.play_url }),
+          body: JSON.stringify({ account_id: t.account, device_id: id, song_id: s.id }),
         }).then(function (r) { return r.json(); });
       })
       .then(function (r) {
@@ -483,6 +485,7 @@
         row.style.opacity = '';
         if (!r || r.success === false) throw new Error((r && r.error) || '播放失败');
         toast('已播放：' + s.title + (s.artist ? ' · ' + s.artist : ''));
+        try { window.dispatchEvent(new CustomEvent('miot:player-changed')); } catch (e) { /* ignore */ }
       })
       .catch(function (e) {
         row.removeAttribute('data-pt-busy');

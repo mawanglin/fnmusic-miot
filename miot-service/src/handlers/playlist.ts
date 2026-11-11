@@ -427,6 +427,39 @@ export function registerPlaylistHandlers(
     }
   });
 
+  // POST /player/play-song - 按歌曲 ID 播放单曲（右上角搜索结果点歌用）
+  // 以前右上角直接调 /mina/play-url 把音频地址丢给音箱，播放器不知道换了歌：
+  // 播放栏、播放页的封面 / 歌名 / 歌词仍是上一首。改走 playWithSongs，与语音点歌同一条链路。
+  router.post('/player/play-song', async (req: HTTPRequest) => {
+    try {
+      const body = parseBody(req);
+      const { account_id, device_id, song_id } = body;
+      if (!account_id) return jsonResponse({ success: false, error: 'account_id is required' });
+      if (!device_id) return jsonResponse({ success: false, error: 'device_id is required' });
+      const songId = Number(song_id) || 0;
+      if (songId <= 0) return jsonResponse({ success: false, error: 'song_id is required' });
+
+      const config = await configManager.getConfig();
+      if (!config.server_host) {
+        return jsonResponse({ success: false, error: '未配置服务器地址，请先在「设置」中配置服务器地址。' });
+      }
+      if (isLoopbackAddress(config.server_host)) {
+        return jsonResponse({ success: false, error: '服务器地址为本地回环地址，MIoT 智能音箱无法访问。请在「设置」中修改为局域网 IP 地址。' });
+      }
+
+      const song = await songloft.songs.getById(songId);
+      if (!song) return jsonResponse({ success: false, error: '找不到这首歌，请重新搜索后再试' });
+
+      const manager = await playlistManagerMap.getOrCreate(account_id, device_id);
+      manager.setAnnounceOnSongChange(false);
+      const ok = await manager.playWithSongs([song] as any, 0, 'order', '搜索结果');
+      if (!ok) return jsonResponse({ success: false, error: '播放失败' });
+      return jsonResponse({ success: true, data: { message: 'song started', song_id: songId } });
+    } catch (e: any) {
+      return jsonResponse({ success: false, error: e.message || String(e) });
+    }
+  });
+
   // POST /player/play - 播放歌单
   router.post('/player/play', async (req: HTTPRequest) => {
     try {
