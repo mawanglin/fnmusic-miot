@@ -7,6 +7,7 @@ import AISettings from './settings/AISettings.vue';
 import VoiceSettings from './settings/VoiceSettings.vue';
 import ScheduleSettings from './settings/ScheduleSettings.vue';
 import ToolboxSettings from './settings/ToolboxSettings.vue';
+import LibrarySettings from './settings/LibrarySettings.vue';
 import SlIcon from '../ui/SlIcon.vue';
 import SlStatusChip from '../ui/SlStatusChip.vue';
 import { closePage, navigation } from '../runtime';
@@ -16,6 +17,7 @@ import { openSelect } from '../ui/selectState';
 const isNarrow = ref(typeof window !== 'undefined' && window.innerWidth < 600);
 const categories = [
   { id: 'device', title: '设备', subtitle: '服务器、账号和设备分组', icon: 'speaker_group', component: DeviceSettings },
+  { id: 'library', title: '飞牛音乐', subtitle: '曲库连接地址与探测', icon: 'link', component: LibrarySettings },
   { id: 'playback', title: '播放', subtitle: '格式、音量和触屏显示', icon: 'music_note', component: PlaybackSettings },
   { id: 'voice', title: '语音', subtitle: '监听、口令和搜索', icon: 'record_voice_over', component: VoiceSettings },
   { id: 'ai', title: 'AI 设置', subtitle: '模型连接、口令分析、对话与记忆', icon: 'auto_awesome', component: AISettings },
@@ -49,6 +51,10 @@ function categoryStatus(category: (typeof categories)[number]): { label: string;
   if (category.id === 'device') {
     if (!state.accounts.length) return { label: '待配置', tone: 'warning' };
     return { label: `${managedDeviceCount.value} 台`, tone: managedDeviceCount.value ? 'success' : 'warning' };
+  }
+  if (category.id === 'library') {
+    if (!state.fnmusic.checked) return null;
+    return state.fnmusic.reachable ? { label: '已连接', tone: 'success' } : { label: '连接失败', tone: 'warning' };
   }
   if (category.id === 'voice') return { label: state.config.conversation_monitor_enabled ? '运行中' : '未启用', tone: state.config.conversation_monitor_enabled ? 'success' : 'neutral' };
   if (category.id === 'schedule') return { label: state.config.scheduled_tasks_enabled ? '已启用' : '已暂停', tone: state.config.scheduled_tasks_enabled ? 'success' : 'neutral' };

@@ -243,6 +243,20 @@ _miot_env_del() {
     rm -f "${tmp}"
 }
 
+# 实地探测飞牛音乐 HTTP 网关端口（用随包 Node 跑 miot-service/scripts/detect-gateway.mjs）。
+# 找到则输出端口号；找不到或环境不满足输出空串。绝不让安装失败。
+fnmusic_miot_detect_gateway_port() {
+    local node_bin script out
+    node_bin="$(fnmusic_miot_find_node)"
+    script="${MIOT_REPO_DIR}/miot-service/scripts/detect-gateway.mjs"
+    [ -n "${node_bin}" ] && [ -f "${script}" ] || return 0
+    out="$(timeout 30 "${node_bin}" "${script}" 127.0.0.1 2>> "${FNMUSIC_MIOT_LOG}" || true)"
+    case "${out}" in
+        ''|*[!0-9]*) return 0 ;;
+    esac
+    echo "${out}"
+}
+
 fnmusic_miot_env_setup() {
     local env_file="${MIOT_REPO_DIR}/.env" ip="" port="6688" gw_conf="" p="" node_bin="" gw_detected=0 cur_port="" cur_url=""
     [ -f "${env_file}" ] || : > "${env_file}"
@@ -263,6 +277,11 @@ fnmusic_miot_env_setup() {
         fi
         [ -n "${p}" ] && { port="${p}"; gw_detected=1; }
     fi
+    # 配置文件只是线索，不一定准（曾读错写成 6688）。再用控制层同一套探测器实地验证：
+    # 逐个端口请求飞牛音乐接口并核对指纹，验证通过的才采信；验证不了（飞牛音乐没开等）
+    # 就保留上面的结果，运行时与设置页还会继续兜底。
+    p="$(fnmusic_miot_detect_gateway_port)"
+    [ -n "${p}" ] && { port="${p}"; gw_detected=1; }
 
     node_bin="$(fnmusic_miot_find_node)"
     [ -n "${node_bin}" ] || node_bin="/usr/bin/node"

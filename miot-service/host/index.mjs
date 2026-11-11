@@ -19,6 +19,7 @@ import { createFnMusicClient } from '../adapter/fnmusic.mjs';
 import { createMusicAdapter } from '../adapter/songs.mjs';
 import { createStreamHandler, createCoverHandler, createLyricHandler } from '../adapter/stream.mjs';
 import { createCompatHandler } from '../adapter/compat.mjs';
+import { createGatewaySettings, createGatewayManager } from './gateway.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const execFileAsync = promisify(execFile);
@@ -80,9 +81,9 @@ const cfg = {
   requireAuth: !/^(0|false|no|off)$/i.test(process.env.MIOT_REQUIRE_AUTH || 'true'),
   serverHost: (process.env.MIOT_SERVER_HOST || defaultServerHost).replace(/\/$/, ''),
   forceServerHost: /^(1|true|yes|on)$/i.test(process.env.MIOT_SERVER_HOST_FORCE || ''),
-  // FeiNiu Music gateway. fnOS 1.2.x exposes it on the *HTTP gateway port*
-  // (6688 on this NAS, from /usr/trim/etc/network_gateway_setting.conf), not
-  // on the old 5666 default. FNMUSIC_BASE_URL always wins when set.
+  // FeiNiu Music gateway = fnOS 的 HTTP 网关端口，因机器而异（常见 5666）。
+  // 这里只是「初始值」：用户在设置页手动保存的地址优先（见 host/gateway.mjs），
+  // 连不上时运行时会自动重新探测，不再依赖这里写对。
   fnBaseUrl: process.env.FNMUSIC_BASE_URL
     || (nasIp ? `http://${nasIp}:${process.env.FNMUSIC_GATEWAY_PORT || '6688'}` : 'http://127.0.0.1:6688'),
   fnUsername: process.env.FNMUSIC_USERNAME || '',
@@ -130,7 +131,7 @@ await ensureServerHost();
 async function resolveFnToken(force) {
   if (!fs.existsSync(cfg.tokenScript)) return null;
   const args = [cfg.tokenScript, '--db', cfg.musicDbPath,
-    '--base', cfg.fnBaseUrl, '--cache', cfg.tokenCache];
+    '--base', fn.baseUrl, '--cache', cfg.tokenCache];
   if (force) args.push('--force');
   try {
     const { stdout } = await execFileAsync('python3', args, {
@@ -144,13 +145,26 @@ async function resolveFnToken(force) {
   }
 }
 
+// 飞牛网关地址：用户手动设置 > 安装时/环境变量；运行中连不上会自动重新探测。
+const gwSettings = createGatewaySettings(cfg.dataDir);
+const gwLoaded = gwSettings.load();
+let onGatewayChanged = () => {};
+const gateway = createGatewayManager({
+  settings: gwSettings,
+  envBaseUrl: cfg.fnBaseUrl,
+  log,
+  onChanged: () => onGatewayChanged(),
+});
+
 const fn = createFnMusicClient({
-  baseUrl: cfg.fnBaseUrl,
+  baseUrl: gwLoaded.mode === 'manual' ? gwLoaded.baseUrl : cfg.fnBaseUrl,
+  recoverBaseUrl: (failed) => gateway.recover(failed),
   username: cfg.fnUsername,
   password: cfg.fnPassword,
   tokenProvider: resolveFnToken,
   log,
 });
+gateway.attach(fn);
 const music = createMusicAdapter({ fn, storage, log, cfg });
 installSongloft({ cfg, storage, music, log });
 
@@ -158,6 +172,8 @@ const streamHandler = createStreamHandler({ fn, music, cfg, log });
 const coverHandler = createCoverHandler({ fn, music, log });
 const lyricHandler = createLyricHandler({ fn, music, log });
 const compat = createCompatHandler({ fn, music, cfg, log, storage });
+// 地址变了（自动恢复 / 设置页保存）：令牌与曲库索引都要按新地址重来。
+onGatewayChanged = () => { void compat.refreshIndex(); };
 
 if (!fs.existsSync(cfg.distFile)) {
   log.error(`bundle not found: ${cfg.distFile} -- run "npm run build" (see README)`);
@@ -171,7 +187,13 @@ if (typeof globalThis.onInit !== 'function') {
 }
 await globalThis.onInit();
 
-const server = await startServer({ cfg, streamHandler, coverHandler, lyricHandler, compat, log });
+const server = await startServer({ cfg, streamHandler, coverHandler, lyricHandler, compat, gateway, log });
+
+// 启动即校验一次飞牛地址；连不上且是自动模式时，这里就会触发探测与切换。
+void gateway.status({ fresh: true }).then((s) => {
+  if (!s.reachable) log.warn(`[gateway] 飞牛音乐不可达：${s.base_url}（${s.reason || '未知原因'}）`);
+  else log.info(`[gateway] 飞牛音乐 ${s.base_url}（${s.source}）`);
+});
 
 let shuttingDown = false;
 async function shutdown(signal) {

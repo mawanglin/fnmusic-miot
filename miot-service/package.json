@@ -9,7 +9,8 @@
     "build:panel": "npm install --prefix frontend --no-audit --no-fund && npm run build --prefix frontend",
     "build:all": "node build.mjs && npm run build:panel",
     "start": "node host/index.mjs",
-    "check": "node --check host/index.mjs && node --check host/server.mjs"
+    "check": "node --check host/index.mjs && node --check host/server.mjs",
+    "test": "node --test tests/gateway.test.mjs"
   },
   "devDependencies": {
     "@songloft/plugin-sdk": "2.18.0",

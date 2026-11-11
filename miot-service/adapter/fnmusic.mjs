@@ -121,12 +121,38 @@ class FnMusicError extends Error {
 // account is OAuth-created, /user/password-login is unusable (code 120001);
 // the host supplies a live `music-token` session read from music.db instead.
 // Password login below remains as a fallback for accounts that do have one.
-export function createFnMusicClient({ baseUrl, username, password, tokenProvider = null, log = console }) {
+// 「连不上」类错误：端口不对 / 服务没起 / 地址变了。undici 统一抛 TypeError('fetch failed')，
+// 真正原因在 err.cause.code。只有这类错误才触发地址自动恢复；HTTP 4xx/5xx 不算。
+const CONN_ERRORS = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT']);
+function isConnectError(err) {
+  const code = err?.cause?.code || err?.code || '';
+  return CONN_ERRORS.has(code) || (err?.name === 'TypeError' && /fetch failed/i.test(String(err?.message)));
+}
+
+// recoverBaseUrl(failedBase) -> Promise<string|null>：由宿主提供，重新探测飞牛音乐的真实地址。
+// 返回与 failedBase 不同的新地址即表示「已找到」，客户端换用并重试一次。
+export function createFnMusicClient({ baseUrl, username, password, tokenProvider = null, log = console, recoverBaseUrl = null }) {
   let urlBase = String(baseUrl || 'http://127.0.0.1:5666').replace(/\/$/, '');
   let token = null;
   let useAuthx = true;
   let normalized = false;
   const deviceId = randomBytes(16).toString('hex');
+
+  // 所有发往飞牛网关的请求都走它：连接失败时让宿主重新探测地址，换了地址就重试一次。
+  async function gfetch(relative, init) {
+    try {
+      return await nativeFetch(urlBase + relative, init);
+    } catch (err) {
+      if (!recoverBaseUrl || !isConnectError(err)) throw err;
+      const failed = urlBase;
+      const next = await recoverBaseUrl(failed).catch(() => null);
+      if (!next || next === failed) throw err;
+      log.warn?.(`[fnmusic] ${failed} 连不上，已自动切换到 ${next}`);
+      urlBase = next;
+      normalized = false;
+      return nativeFetch(urlBase + relative, init);
+    }
+  }
 
   // 可选能力：fnmusic-ext 是否在位。结果带 60 秒 TTL，同一时刻只发一个探测，
   // 避免面板每次刷新 /playlists 都去碰一次系统 socket。
@@ -153,7 +179,7 @@ export function createFnMusicClient({ baseUrl, username, password, tokenProvider
     if (normalized) return;
     normalized = true;
     try {
-      const r = await nativeFetch(urlBase + API_BASE + '/initialization/state', { redirect: 'follow' });
+      const r = await gfetch(API_BASE + '/initialization/state', { redirect: 'follow' });
       const final = new URL(r.url);
       const origin = final.origin;
       if (origin && origin !== urlBase) {
@@ -185,7 +211,7 @@ export function createFnMusicClient({ baseUrl, username, password, tokenProvider
     for (const mode of [useAuthx, !useAuthx]) {
       const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
       if (mode) headers.authx = signAuthx('POST', path, null, Buffer.from(body));
-      const r = await nativeFetch(urlBase + API_BASE + path, { method: 'POST', headers, body, redirect: 'manual' });
+      const r = await gfetch(API_BASE + path, { method: 'POST', headers, body, redirect: 'manual' });
       let payload;
       try { payload = await r.json(); } catch { lastError = `HTTP ${r.status}`; continue; }
       if (payload?.code === 0) {
@@ -212,7 +238,7 @@ export function createFnMusicClient({ baseUrl, username, password, tokenProvider
     const body = jsonBody == null ? '' : JSON.stringify(jsonBody);
     const headers = apiHeaders(method, path, query, Buffer.from(body));
     if (jsonBody != null) headers['Content-Type'] = 'application/json';
-    const r = await nativeFetch(urlBase + API_BASE + path + encodeQuery(query), {
+    const r = await gfetch(API_BASE + path + encodeQuery(query), {
       method, headers, body: body || undefined, redirect: 'manual',
     });
     if ((r.status === 401 || r.status === 403) && !retried) {
@@ -257,7 +283,14 @@ export function createFnMusicClient({ baseUrl, username, password, tokenProvider
       ...(rangeHeader ? { Range: rangeHeader } : {}),
     };
     for (let hop = 0; hop <= 5; hop++) {
-      const r = await nativeFetch(current, { method: 'GET', headers, redirect: 'manual' });
+      let r;
+      if (hop === 0) {
+        // 第一跳发往飞牛网关本身，可能需要地址恢复；之后的跳转是网关给的 Location，不动。
+        r = await gfetch(current.slice(urlBase.length), { method: 'GET', headers, redirect: 'manual' });
+        if (!current.startsWith(urlBase)) current = urlBase + current.slice(current.indexOf(API_BASE));
+      } else {
+        r = await nativeFetch(current, { method: 'GET', headers, redirect: 'manual' });
+      }
       if (r.status >= 300 && r.status < 400) {
         const loc = r.headers.get('location');
         if (!loc) throw new FnMusicError('302 without Location');
@@ -283,6 +316,14 @@ export function createFnMusicClient({ baseUrl, username, password, tokenProvider
 
   return {
     get baseUrl() { return urlBase; },
+    /** 运行时换地址（设置页保存 / 自动恢复）。令牌与探测缓存一并作废。 */
+    setBaseUrl(next) {
+      const clean = String(next || '').replace(/\/$/, '');
+      if (!clean || clean === urlBase) return;
+      urlBase = clean;
+      normalized = false;
+      token = null;
+    },
     get loggedIn() { return !!token; },
     get token() { return token; },
     get useAuthx() { return useAuthx; },

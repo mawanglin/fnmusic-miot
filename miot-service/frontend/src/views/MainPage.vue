@@ -17,6 +17,7 @@ import { confirmAction, currentDevice, deviceName, lastPlayedSong, messageOf, pl
 import type { SelectOption, Song } from '../types';
 
 const playlistOptions = computed<SelectOption[]>(() => state.playlists.map((p) => ({ value: String(p.id), label: playlistLabel(p), searchText: p.name })));
+const fnmusicDown = computed(() => state.fnmusic.checked && !state.fnmusic.reachable);
 const noServerHint = computed(() => !state.config.server_host || state.config.server_host_status === 'loopback');
 // 有进度记录 + 有设备才给「继续播放」。歌曲列表未必已加载完（歌名靠它取），
 // 所以只用 playlistProgress 判断能不能续播，歌名有就显示在 title 里。
@@ -381,6 +382,15 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- 飞牛音乐连不上：直接说原因并引导去设置，而不是只在列表里显示 fetch failed -->
+    <div v-if="fnmusicDown" class="status-panel">
+      <div class="inline-fields">
+        <SlIcon name="cloud_off" :size="18" />
+        <span>无法连接飞牛音乐（{{ state.fnmusic.base_url }}）：{{ state.fnmusic.reason || '地址或端口可能不对' }}。请在设置里填写飞牛网关地址。</span>
+        <SlButton variant="text" label="去设置" @click="navigation.settingsCategory = 'library'; openPage('settings')" />
+      </div>
+    </div>
+
     <div class="player-toolbar">
       <div class="toolbar-field">
         <SlSelect leading-icon="queue_music" :model-value="state.selectedPlaylistId" :options="playlistOptions" placeholder="选择播放歌单" allow-empty searchable search-placeholder="搜索歌单" aria-label="选择歌单" @update:model-value="onPlaylist" />
@@ -441,7 +451,8 @@ onUnmounted(() => {
       </div>
     </div>
     <div v-else-if="state.songsLoading" class="song-list-empty"><span class="loading-spinner"></span><span>正在加载歌曲</span></div>
-    <SlEmptyState v-else-if="state.songsError" title="歌曲加载失败" :description="state.songsError" icon="cloud_off">
+    <SlEmptyState v-else-if="state.songsError" title="歌曲加载失败" :description="fnmusicDown ? `无法连接飞牛音乐（${state.fnmusic.base_url}）。${state.fnmusic.reason || ''}` : state.songsError" icon="cloud_off">
+      <SlButton v-if="fnmusicDown" variant="filled" label="去设置飞牛地址" icon="link" @click="navigation.settingsCategory = 'library'; openPage('settings')" />
       <SlButton variant="tonal" label="重新加载" icon="refresh" @click="selectPlaylist(state.selectedPlaylistId)" />
     </SlEmptyState>
     <SlEmptyState v-else title="选择一个歌单" description="选好歌单后，可以搜索、定位并直接推送到音箱播放。" icon="queue_music" />

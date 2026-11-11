@@ -191,7 +191,7 @@ function mergePlayParams(searchParams, opts) {
 
 const ACCESS_LOG = process.env.FNMUSIC_MIOT_ACCESS_LOG !== '0';
 
-export async function startServer({ cfg, streamHandler, coverHandler, lyricHandler, compat, log }) {
+export async function startServer({ cfg, streamHandler, coverHandler, lyricHandler, compat, gateway, log }) {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     let pathname = url.pathname;
@@ -207,6 +207,34 @@ export async function startServer({ cfg, streamHandler, coverHandler, lyricHandl
         res.writeHead(result.statusCode || 200, result.headers || { 'Content-Type': 'application/json' });
         res.end(result.body ?? '');
         return;
+      }
+
+      // 1b) 飞牛音乐连接设置（设置页 / 首次引导）：状态、测试、自动探测、保存。
+      //     必须带令牌；面板经 nodeconsole 反代访问，令牌由它注入。
+      if (pathname.startsWith('/fnmusic/')) {
+        const json = (statusCode, payload) => {
+          res.writeHead(statusCode, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify(payload));
+        };
+        if (!authorized(req, url, cfg)) return json(401, { error: 'unauthorized' });
+        const route = pathname.slice('/fnmusic'.length);
+        try {
+          if (route === '/status' && req.method === 'GET') {
+            return json(200, await gateway.status({ fresh: url.searchParams.get('fresh') === '1' }));
+          }
+          if (req.method === 'POST' && ['/test', '/detect', '/config'].includes(route)) {
+            let body = {};
+            try { body = JSON.parse((await collectBody(req)).toString('utf8') || '{}'); } catch { return json(400, { error: '请求体不是有效的 JSON' }); }
+            if (route === '/test') return json(200, await gateway.test(body.base_url));
+            if (route === '/detect') return json(200, await gateway.detectNow());
+            const mode = body.mode === 'auto' ? 'auto' : 'manual';
+            return json(200, await gateway.apply({ mode, baseUrl: body.base_url, force: body.force === true }));
+          }
+          return json(404, { error: 'not found' });
+        } catch (err) {
+          // 地址不合法 / 连不上：400，message 是可直接展示给用户的中文说明。
+          return json(400, { error: String(err?.message || err), code: err?.code || 'BAD_REQUEST' });
+        }
       }
 
       // 2) Audio stream endpoints (the speaker only fetches a bare HTTP URL).

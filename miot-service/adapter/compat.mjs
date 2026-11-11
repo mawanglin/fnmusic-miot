@@ -22,6 +22,8 @@ export function createCompatHandler({ fn, music, cfg, log, storage }) {
   }
 
   return {
+    /** 触发曲库索引刷新（飞牛地址变更后调用）。 */
+    refreshIndex() { return probe('/indexing/refresh', 'POST'); },
     async handle(pathname, req, url) {
       // 只读诊断：语音点播的飞牛音乐搜索候选（含 ext 在线音源）实际命中了什么。
       // 会触发一次上游搜索，所以要求与播放端点同一个 token，避免被 LAN 侧滥用。

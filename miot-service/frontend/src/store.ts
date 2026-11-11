@@ -127,6 +127,8 @@ export const state = reactive({
   conversationStatus: null as Record<string, unknown> | null,
   webhooks: [] as Webhook[],
   indexStatus: {} as IndexStatus,
+  // 飞牛音乐连接状态（地址探测 / 设置页）。checked=false 表示还没测过，不要提前报错。
+  fnmusic: { checked: false, reachable: true, base_url: '', mode: 'auto', source: '', reason: '' } as FnmusicStatus,
   memoryStats: {} as MemoryStats,
   memoryEntities: [] as MemoryEntity[],
   memoryUnclassified: [] as Array<Record<string, unknown>>,
@@ -391,6 +393,39 @@ export async function toggleManaged(accountId: string, selectedDeviceId: string,
   notify(managed ? '已启用设备管理' : '已停用设备管理', 'success');
 }
 
+export interface FnmusicStatus {
+  checked: boolean;
+  reachable: boolean;
+  base_url: string;
+  mode: 'auto' | 'manual';
+  source: string;
+  reason: string;
+}
+
+/** 读取飞牛音乐连接状态；失败时静默（旧版后端没有这个接口）。 */
+export async function loadFnmusicStatus(fresh = false): Promise<FnmusicStatus> {
+  try {
+    const s = await get<Partial<FnmusicStatus>>(`/fnmusic/status${fresh ? '?fresh=1' : ''}`);
+    state.fnmusic = {
+      checked: s.checked !== false,
+      reachable: s.reachable === true,
+      base_url: String(s.base_url || ''),
+      mode: s.mode === 'manual' ? 'manual' : 'auto',
+      source: String(s.source || ''),
+      reason: String(s.reason || ''),
+    };
+  } catch { /* 接口不可用：保持原状，不打扰用户 */ }
+  return state.fnmusic;
+}
+
+/** 保存飞牛音乐地址（manual）或恢复自动探测（auto），成功后重新加载歌单。 */
+export async function saveFnmusicGateway(opts: { mode: 'auto' | 'manual'; baseUrl?: string; force?: boolean }): Promise<void> {
+  await post('/fnmusic/config', { mode: opts.mode, base_url: opts.baseUrl, force: opts.force === true });
+  await loadFnmusicStatus(true);
+  try { await loadPlaylists(); } catch { /* 状态已更新，歌单失败由列表自己提示 */ }
+  if (state.selectedPlaylistId) void selectPlaylist(state.selectedPlaylistId);
+}
+
 export async function loadPlaylists(): Promise<void> {
   state.playlists = (await get<Playlist[]>('/playlists')) || [];
   if (
@@ -420,7 +455,11 @@ export async function selectPlaylist(playlistId: string): Promise<void> {
     const songs = await get<Song[]>(`/playlists/${encodeURIComponent(playlistId)}/songs`);
     if (request === songRequest) state.songs = songs || [];
   } catch (error) {
-    if (request === songRequest) state.songsError = messageOf(error);
+    if (request === songRequest) {
+      state.songsError = messageOf(error);
+      // 加载失败多半是飞牛地址不对：马上核实，让页面能给出明确的引导而不是只显示 fetch failed。
+      void loadFnmusicStatus(true);
+    }
   } finally {
     if (request === songRequest) state.songsLoading = false;
   }
@@ -949,6 +988,7 @@ export async function initialize(): Promise<void> {
   state.loading = true;
   state.startupError = '';
   try {
+    void loadFnmusicStatus();
     await Promise.all([loadConfig(), loadPlaylists()]);
     savedConfig = configFingerprint();
     state.initialized = true;

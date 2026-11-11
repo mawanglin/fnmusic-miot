@@ -77,6 +77,16 @@ cd miot-service && npm install --no-audit --no-fund && npm run build:all
 
 `bundle/` 与 `static/` 为构建产物，已被 `.gitignore` 忽略。`miot-service/src/data/`（拼音表、节假日、口令表）取自 songloft-plugin-miot，**必须入库**：此前 `miot-service/.gitignore` 的 `data/` 把它误忽略，导致干净克隆无法编译。
 
+## 飞牛音乐网关地址（自动探测，三层兜底）
+
+本应用经 fnOS 的 HTTP 网关访问飞牛音乐，网关端口因机器而异（常见 5666，可被改动）。端口不对会表现为「歌曲加载失败 fetch failed」，所以做了三层保护：
+
+1. **安装时**：先读 `/usr/trim/etc/network_gateway_setting.conf`，再用 `miot-service/scripts/detect-gateway.mjs` 实地验证——逐个端口请求 `/music/api/v1/initialization/state`，只有返回飞牛音乐特有的 JSON（数字 `code` + `data.initialized`）才采信，不会误连别的 HTTP 服务。
+2. **运行中**：请求飞牛音乐连接失败（拒绝 / 超时 / 解析失败）时，自动重新探测并切换地址、重试一次（15 秒内不重复探测），并刷新曲库索引。
+3. **设置页**：探测不到时，主界面顶部和「歌曲加载失败」处会直接提示原因并引导到 **设置 → 飞牛音乐**，可「自动探测」「测试连接」「保存」；保存后立即生效，无需重启。手动保存的地址（`<数据目录>/fnmusic-gateway.json`）优先于自动探测与 `.env`，不会被自动覆盖；「恢复自动探测」可清除。
+
+相关接口（需令牌）：`GET /fnmusic/status`、`POST /fnmusic/test`、`/fnmusic/detect`、`/fnmusic/config`。探测逻辑与测试见 `miot-service/host/gateway.mjs`、`miot-service/tests/gateway.test.mjs`（`npm test`）。
+
 ## 配置
 
 - 语音口令、设备绑定、播放偏好等均在控制台 UI 内配置，持久化于应用数据目录
